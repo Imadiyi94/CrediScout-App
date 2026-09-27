@@ -8,3 +8,5 @@ dist/
 prisma/*.db
 coverage/
 .next/types/
+tsconfig.tsbuildinfo
+next-env.d.ts
