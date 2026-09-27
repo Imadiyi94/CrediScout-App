@@ -1,0 +1,399 @@
+// CrediScout data model — Phase 0/2.
+// Money: integer kobo (BigInt). Rates: Decimal percent-per-month.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ---------- Enums ----------
+
+enum Role {
+  ANALYST
+  ADMIN
+}
+
+enum BorrowerType {
+  INDIVIDUAL
+  BUSINESS
+}
+
+enum ClientStatus {
+  NEW
+  RETURNING
+}
+
+enum Product {
+  SBL
+  SME
+  AGRO
+  CLEAN_ENERGY
+  HOUSING_EDU
+  ASSET
+}
+
+enum AssessmentStatus {
+  DRAFT
+  IN_REVIEW
+  RECOMMENDED
+  DECIDED
+}
+
+enum RateType {
+  RB
+  FLAT
+}
+
+enum Decision {
+  APPROVE
+  REDUCED
+  DECLINE
+  REFER
+}
+
+enum RepaymentFrequency {
+  MONTHLY
+  QUARTERLY
+  BULLET
+}
+
+enum VerificationStatus {
+  PENDING
+  VERIFIED
+  REJECTED
+}
+
+// ---------- Better Auth tables ----------
+
+model User {
+  id            String    @id @default(cuid())
+  name          String
+  email         String    @unique
+  emailVerified Boolean   @default(false)
+  image         String?
+  role          Role      @default(ANALYST)
+  scopes        String[]  @default([])
+  banned        Boolean   @default(false)
+  banReason     String?
+  banExpires    DateTime?
+  active        Boolean   @default(true)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  sessions Session[]
+  accounts Account[]
+
+  assessments Assessment[] @relation("AnalystAssessments")
+  auditEvents AuditEvent[]
+
+  @@map("user")
+}
+
+model Session {
+  id        String   @id @default(cuid())
+  userId    String
+  token     String   @unique
+  expiresAt DateTime
+  ipAddress String?
+  userAgent String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("session")
+}
+
+model Account {
+  id                    String    @id @default(cuid())
+  userId                String
+  accountId             String
+  providerId            String
+  accessToken           String?
+  refreshToken          String?
+  accessTokenExpiresAt  DateTime?
+  refreshTokenExpiresAt DateTime?
+  scope                 String?
+  idToken               String?
+  password              String?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("account")
+}
+
+model Verification {
+  id         String   @id @default(cuid())
+  identifier String
+  value      String
+  expiresAt  DateTime
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@map("verification")
+}
+
+// ---------- Domain ----------
+
+model Borrower {
+  id                      String       @id @default(cuid())
+  type                    BorrowerType
+  displayName             String
+  phone                   String?
+  email                   String?
+  address                 String?
+  businessProfile         Json?
+  clientStatus            ClientStatus @default(NEW)
+  clientStatusVerified    Boolean      @default(false)
+  clientStatusVerifiedAt  DateTime?
+  clientStatusVerifiedBy  String?
+  clientStatusEvidence    String?
+  createdAt               DateTime     @default(now())
+  updatedAt               DateTime     @updatedAt
+
+  assessments Assessment[]
+}
+
+model Assessment {
+  id                   String           @id @default(cuid())
+  borrowerId           String
+  analystId            String
+  product              Product
+  status               AssessmentStatus @default(DRAFT)
+  currentStage         Int              @default(1)
+  requestedAmountKobo  BigInt
+  proposedTenorMonths  Int
+  loanPurpose          String
+  repaymentSource      String
+  repaymentFrequency   RepaymentFrequency @default(MONTHLY)
+  existingExposureKobo BigInt            @default(0)
+  createdAt            DateTime          @default(now())
+  updatedAt            DateTime          @updatedAt
+
+  borrower Borrower @relation(fields: [borrowerId], references: [id])
+  analyst  User     @relation("AnalystAssessments", fields: [analystId], references: [id])
+
+  financialSnapshot FinancialSnapshot?
+  creditProfile     CreditProfile?
+  businessProfile   BusinessProfile?
+  productAssessment ProductAssessment?
+  recommendation    Recommendation?
+  collaterals       Collateral[]
+  documents         Document[]
+  alerts            Alert[]
+  auditEvents       AuditEvent[]
+
+  @@index([analystId, status])
+  @@index([borrowerId])
+}
+
+model FinancialSnapshot {
+  id                       String   @id @default(cuid())
+  assessmentId             String   @unique
+  revenueKobo              BigInt
+  opexKobo                 BigInt
+  netIncomeKobo            BigInt
+  cashFlowKobo             BigInt
+  existingDebtServiceKobo  BigInt   @default(0)
+  proposedDebtServiceKobo  BigInt   @default(0)
+  dti                      Decimal? @db.Decimal(10, 4)
+  dscr                     Decimal? @db.Decimal(10, 4)
+  loanToIncome             Decimal? @db.Decimal(10, 4)
+  verified                 Boolean  @default(false)
+  verifiedBy               String?
+  source                   String?
+  notes                    String?
+  createdAt                DateTime @default(now())
+  updatedAt                DateTime @updatedAt
+
+  assessment Assessment @relation(fields: [assessmentId], references: [id], onDelete: Cascade)
+}
+
+model CreditProfile {
+  id                      String   @id @default(cuid())
+  assessmentId            String   @unique
+  repaymentHistoryGrade   String?
+  delinquencyFlags        String[] @default([])
+  totalExposureKobo       BigInt   @default(0)
+  utilizationPct          Decimal? @db.Decimal(5, 2)
+  multipleBorrowingFlags  String[] @default([])
+  guarantorObligationsKobo BigInt  @default(0)
+  redFlags                Json?
+  createdAt               DateTime @default(now())
+  updatedAt               DateTime @updatedAt
+
+  assessment Assessment @relation(fields: [assessmentId], references: [id], onDelete: Cascade)
+}
+
+model BusinessProfile {
+  id              String   @id @default(cuid())
+  assessmentId    String   @unique
+  payload         Json
+  qualitativeScore Decimal? @db.Decimal(5, 2)
+  notes           String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  assessment Assessment @relation(fields: [assessmentId], references: [id], onDelete: Cascade)
+}
+
+model Collateral {
+  id                   String             @id @default(cuid())
+  assessmentId         String
+  type                 String
+  ownership            String?
+  estimatedValueKobo   BigInt
+  verifiedValueKobo    BigInt?
+  marketability        String?
+  encumbrancesKobo     BigInt             @default(0)
+  documentationStatus  VerificationStatus @default(PENDING)
+  ltv                  Decimal?           @db.Decimal(6, 4)
+  createdAt            DateTime           @default(now())
+  updatedAt            DateTime           @updatedAt
+
+  assessment Assessment @relation(fields: [assessmentId], references: [id], onDelete: Cascade)
+
+  @@index([assessmentId])
+}
+
+model ProductAssessment {
+  id           String   @id @default(cuid())
+  assessmentId String   @unique
+  product      Product
+  payload      Json
+  notes        String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  assessment Assessment @relation(fields: [assessmentId], references: [id], onDelete: Cascade)
+}
+
+// Effective-dated pricing. Never hard-delete: expire + insert.
+model RateTable {
+  id               String      @id @default(cuid())
+  product          Product
+  clientStatus     ClientStatus?
+  minAmountKobo    BigInt
+  maxAmountKobo    BigInt?
+  ratePctMonthly   Decimal     @db.Decimal(6, 3)
+  rateType         RateType
+  effectiveFrom    DateTime    @default(now())
+  effectiveTo      DateTime?
+  active           Boolean     @default(true)
+  note             String?
+
+  @@unique([product, clientStatus, minAmountKobo])
+  @@index([product, active])
+}
+
+model PolicyThreshold {
+  id        String   @id @default(cuid())
+  key       String
+  product   Product?
+  value     Decimal  @db.Decimal(10, 4)
+  note      String?
+  updatedAt DateTime @updatedAt
+
+  @@unique([key, product])
+}
+
+model Recommendation {
+  id                     String    @id @default(cuid())
+  assessmentId           String    @unique
+  decision               Decision
+  requestedAmountKobo    BigInt
+  recommendedAmountKobo  BigInt
+  recommendedTenorMonths Int
+  ratePctMonthly         Decimal   @db.Decimal(6, 3)
+  rateType               RateType
+  rateBasis              String
+  installmentKobo        BigInt?
+  totalInterestKobo      BigInt?
+  effectiveAnnualRatePct Decimal?  @db.Decimal(7, 4)
+  reasons                String?
+  risks                  Json?
+  mitigations            Json?
+  conditions             String?
+  analystNotes           String?
+  decidedBy              String
+  decidedAt              DateTime  @default(now())
+
+  assessment Assessment              @relation(fields: [assessmentId], references: [id], onDelete: Cascade)
+  overrides  RecommendationOverride[]
+}
+
+model RecommendationOverride {
+  id               String   @id @default(cuid())
+  recommendationId String
+  field            String
+  oldValue         String?
+  newValue         String?
+  reason           String
+  createdBy        String
+  approvedByAdmin  String?
+  createdAt        DateTime @default(now())
+
+  recommendation Recommendation @relation(fields: [recommendationId], references: [id], onDelete: Cascade)
+
+  @@index([recommendationId])
+}
+
+model Document {
+  id                 String             @id @default(cuid())
+  assessmentId       String
+  kind               String
+  fileKey            String
+  originalName       String
+  mimeType           String?
+  sizeBytes          Int?
+  extractedJson      Json?
+  verificationStatus VerificationStatus @default(PENDING)
+  verifiedBy         String?
+  verifiedAt         DateTime?
+  createdAt          DateTime           @default(now())
+
+  assessment Assessment @relation(fields: [assessmentId], references: [id], onDelete: Cascade)
+
+  @@index([assessmentId])
+}
+
+model Alert {
+  id           String    @id @default(cuid())
+  assessmentId String
+  code         String
+  severity     String
+  message      String
+  whyItMatters String
+  stage        Int?
+  resolvedAt   DateTime?
+  createdAt    DateTime  @default(now())
+
+  assessment Assessment @relation(fields: [assessmentId], references: [id], onDelete: Cascade)
+
+  @@index([assessmentId])
+}
+
+model AuditEvent {
+  id           String    @id @default(cuid())
+  actorId      String
+  assessmentId String?
+  action       String
+  entityType   String
+  entityId     String
+  beforeJson   Json?
+  afterJson    Json?
+  reason       String?
+  createdAt    DateTime  @default(now())
+
+  actor      User        @relation(fields: [actorId], references: [id])
+  assessment Assessment? @relation(fields: [assessmentId], references: [id], onDelete: Cascade)
+
+  @@index([assessmentId, createdAt])
+  @@index([actorId])
+}

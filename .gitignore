@@ -1,0 +1,10 @@
+node_modules/
+.next/
+out/
+dist/
+.env
+.env*.local
+*.pem
+prisma/*.db
+coverage/
+.next/types/
