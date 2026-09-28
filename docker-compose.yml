@@ -12,19 +12,15 @@ services:
       - pgdata:/var/lib/postgresql/data
 
   # Local stand-in for Cloudflare R2 (same S3-compatible API).
-  # LocalStack S3 only — no auth needed (use test/test), endpoint :4566.
+  # Adobe S3Mock — free, no license; creates the bucket on start.
   s3:
-    image: localstack/localstack:latest
+    image: adobe/s3mock:latest
     restart: unless-stopped
-    environment:
-      SERVICES: s3
-      DEFAULT_REGION: us-east-1
-      AWS_ACCESS_KEY_ID: test
-      AWS_SECRET_ACCESS_KEY: test
+    command: ["--initialBuckets=crediscout-docs"]
     ports:
-      - "4566:4566"
+      - "9090:9090"
     volumes:
-      - localstackdata:/var/lib/localstack
+      - s3mockdata:/s3mockroot
 
   # App container (opt-in: local dev normally runs `npm run dev`)
   web:
@@ -34,11 +30,11 @@ services:
       - "3000:3000"
     environment:
       DATABASE_URL: postgresql://crediscout:crediscout-dev@postgres:5432/crediscout?schema=public
-      S3_ENDPOINT_LOCAL: http://s3:4566
+      S3_ENDPOINT_LOCAL: http://s3:9090
     depends_on:
       - postgres
       - s3
 
 volumes:
   pgdata:
-  localstackdata:
+  s3mockdata:
