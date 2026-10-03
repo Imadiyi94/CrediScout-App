@@ -1,7 +1,13 @@
 import Groq from "groq-sdk";
 
-// Single model for all CrediScout AI features (extraction, narrative, chat).
-export const GROQ_MODEL = "llama-3.3-70b-versatile";
+// Single model for all CrediScout AI reasoning (extraction, narrative, chat).
+// (llama-3.3-70b-versatile was requested first but Groq decommissioned it;
+// gpt-oss-120b is the most capable model on this account as of Oct 2026.)
+export const GROQ_MODEL = "openai/gpt-oss-120b";
+// Vision delegate for photos only — text models cannot see images.
+// NOTE: no vision model is enabled on this account yet; photo extraction
+// will fail cleanly until one is added. See Step 3 notes.
+export const GROQ_VISION_MODEL = "meta-llama/llama-4-scout-17b-16e-instruct";
 
 let client: Groq | null = null;
 
@@ -36,4 +42,35 @@ export async function groqChat(args: {
     temperature: 0.2,
   });
   return res.choices[0]?.message?.content?.trim() ?? "";
+}
+
+// Photo → JSON fields. Vision reads the image; the prompt forces JSON-only output.
+export async function groqVisionExtract(args: {
+  mime: string;
+  base64: string;
+  instruction: string;
+}): Promise<string> {
+  const res = await getGroq().chat.completions.create({
+    model: GROQ_VISION_MODEL,
+    messages: [
+      {
+        role: "user",
+        content: [
+          { type: "text", text: args.instruction },
+          { type: "image_url", image_url: { url: `data:${args.mime};base64,${args.base64}` } },
+        ],
+      },
+    ],
+    max_tokens: 2000,
+    temperature: 0.1,
+  });
+  return res.choices[0]?.message?.content?.trim() ?? "";
+}
+
+// Models don't always obey "JSON only" — pull the first {...} block.
+export function extractJsonBlock(text: string): unknown {
+  const start = text.indexOf("{");
+  const end = text.lastIndexOf("}");
+  if (start === -1 || end <= start) throw new Error("Model did not return JSON");
+  return JSON.parse(text.slice(start, end + 1));
 }

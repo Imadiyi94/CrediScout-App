@@ -55,10 +55,30 @@ export async function putDocument(key: string, body: Buffer, contentType: string
   );
 }
 
+function toWebStream(source: AsyncIterable<Uint8Array>): ReadableStream<Uint8Array> {
+  const it = source[Symbol.asyncIterator]();
+  return new ReadableStream<Uint8Array>({
+    async pull(controller) {
+      const { done, value } = await it.next();
+      if (done) controller.close();
+      else controller.enqueue(value);
+    },
+    async cancel() {
+      await it.return?.();
+    },
+  });
+}
+
 export async function getDocument(key: string) {
   const res = await s3.send(new GetObjectCommand({ Bucket: bucket, Key: key }));
+  const body = res.Body as unknown;
+  // AWS SDK v3 yields a Node Readable on the server — pump it into a web stream.
+  const stream =
+    body instanceof ReadableStream
+      ? body
+      : toWebStream(body as AsyncIterable<Uint8Array>);
   return {
-    stream: res.Body as unknown as ReadableStream,
+    stream,
     contentType: res.ContentType ?? "application/octet-stream",
     size: res.ContentLength ?? undefined,
   };
