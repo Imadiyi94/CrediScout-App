@@ -11,14 +11,17 @@ import {
   assessmentCreateSchema,
   borrowerSchema,
   clientStatusVerifySchema,
+  collateralSchema,
   creditRiskSchema,
   financialsSchema,
   profileUpdateSchema,
+  qualitativeSchema,
 } from "@/lib/validators";
 import { putDocument } from "@/lib/storage";
 import { ALLOWED_MIME_PREFIXES, DOC_KINDS, MAX_UPLOAD_BYTES } from "@/lib/documents";
 import { getAssessmentForUser } from "@/lib/assessments";
-import { dscr, dti, evaluateCreditRisk, loanToIncome } from "@engine/index";
+import { PRODUCT_FIELDS } from "@/lib/product-fields";
+import { dscr, dti, evaluateCreditRisk, loanToIncome, ltv, netSecurityValue, scoreQualitative } from "@engine/index";
 
 function fail(to: string, message: string): never {
   redirect(`${to}?error=${encodeURIComponent(message)}`);
@@ -354,6 +357,176 @@ export async function saveCreditRisk(assessmentId: string, formData: FormData) {
     after,
   });
   revalidatePath(`/assessments/${assessmentId}/credit-risk`);
+}
+
+export async function saveQualitative(assessmentId: string, formData: FormData) {
+  const session = await requireUser();
+  const assessment = await getAssessmentForUser(assessmentId, session);
+  if (!assessment) fail(`/assessments/${assessmentId}/qualitative`, "Assessment not found");
+
+  const parsed = qualitativeSchema.safeParse({
+    history: formData.get("history"),
+    industry: formData.get("industry"),
+    management: formData.get("management"),
+    stability: formData.get("stability"),
+    concentration: formData.get("concentration"),
+    seasonality: formData.get("seasonality"),
+    purpose: formData.get("purpose"),
+    repayment: formData.get("repayment"),
+    notes: formData.get("notes") ?? "",
+  });
+  if (!parsed.success) {
+    fail(`/assessments/${assessmentId}/qualitative`, parsed.error.issues[0]?.message ?? "Rate every dimension 1–5");
+  }
+  const { notes, ...answers } = parsed.data;
+  const result = scoreQualitative(answers);
+  const data = {
+    assessmentId,
+    payload: { ...answers, band: result.band, weakest: result.weakest },
+    qualitativeScore: result.average.toFixed(2),
+    notes: notes || null,
+  };
+  const before = await prisma.businessProfile.findUnique({ where: { assessmentId } });
+  const after = before
+    ? await prisma.businessProfile.update({ where: { assessmentId }, data })
+    : await prisma.businessProfile.create({ data });
+  await prisma.assessment.update({
+    where: { id: assessmentId },
+    data: { currentStage: Math.max(assessment.currentStage, 7) },
+  });
+  await logAudit({
+    actorId: session.user.id,
+    assessmentId,
+    action: "QUALITATIVE_SAVE",
+    entityType: "BusinessProfile",
+    entityId: after.id,
+    before,
+    after,
+  });
+  revalidatePath(`/assessments/${assessmentId}/qualitative`);
+}
+
+export async function addCollateral(assessmentId: string, formData: FormData) {
+  const session = await requireUser();
+  const assessment = await getAssessmentForUser(assessmentId, session);
+  if (!assessment) fail(`/assessments/${assessmentId}/collateral`, "Assessment not found");
+
+  const parsed = collateralSchema.safeParse({
+    type: formData.get("type"),
+    ownership: formData.get("ownership") ?? "",
+    estimatedNaira: formData.get("estimatedNaira"),
+    verifiedNaira: formData.get("verifiedNaira") ?? "",
+    marketability: formData.get("marketability"),
+    encumbrancesNaira: formData.get("encumbrancesNaira") ?? "",
+    documentationStatus: formData.get("documentationStatus"),
+  });
+  if (!parsed.success) {
+    fail(`/assessments/${assessmentId}/collateral`, parsed.error.issues[0]?.message ?? "Invalid security");
+  }
+  const v = parsed.data;
+  let estimated: bigint;
+  let verified: bigint | null = null;
+  let encumbrances = 0n;
+  try {
+    estimated = parseNairaToKobo(v.estimatedNaira);
+    if (v.verifiedNaira.trim() !== "") verified = parseNairaToKobo(v.verifiedNaira);
+    if (v.encumbrancesNaira.trim() !== "") encumbrances = parseNairaToKobo(v.encumbrancesNaira);
+  } catch {
+    fail(`/assessments/${assessmentId}/collateral`, "Values must be numbers in naira");
+  }
+  if (estimated! <= 0n) fail(`/assessments/${assessmentId}/collateral`, "Estimated value must be above zero");
+
+  const base = verified ?? estimated!;
+  const net = netSecurityValue(base, encumbrances);
+  const ltvVal = ltv(assessment.requestedAmountKobo, net);
+  const row = await prisma.collateral.create({
+    data: {
+      assessmentId,
+      type: v.type,
+      ownership: v.ownership || null,
+      estimatedValueKobo: estimated!,
+      verifiedValueKobo: verified,
+      marketability: v.marketability,
+      encumbrancesKobo: encumbrances,
+      documentationStatus: v.documentationStatus as "PENDING" | "VERIFIED" | "REJECTED",
+      ltv: ltvVal === null ? null : ltvVal.toFixed(4),
+    },
+  });
+  await prisma.assessment.update({
+    where: { id: assessmentId },
+    data: { currentStage: Math.max(assessment.currentStage, 8) },
+  });
+  await logAudit({
+    actorId: session.user.id,
+    assessmentId,
+    action: "COLLATERAL_ADD",
+    entityType: "Collateral",
+    entityId: row.id,
+    after: row,
+  });
+  revalidatePath(`/assessments/${assessmentId}/collateral`);
+}
+
+export async function removeCollateral(assessmentId: string, formData: FormData) {
+  const session = await requireUser();
+  const assessment = await getAssessmentForUser(assessmentId, session);
+  if (!assessment) fail(`/assessments/${assessmentId}/collateral`, "Assessment not found");
+  const id = String(formData.get("id") ?? "");
+  const row = await prisma.collateral.findFirst({ where: { id, assessmentId } });
+  if (!row) fail(`/assessments/${assessmentId}/collateral`, "Security not found");
+  await prisma.collateral.delete({ where: { id } });
+  await logAudit({
+    actorId: session.user.id,
+    assessmentId,
+    action: "COLLATERAL_REMOVE",
+    entityType: "Collateral",
+    entityId: id,
+    before: row,
+  });
+  revalidatePath(`/assessments/${assessmentId}/collateral`);
+}
+
+export async function saveProductAssessment(assessmentId: string, formData: FormData) {
+  const session = await requireUser();
+  const assessment = await getAssessmentForUser(assessmentId, session);
+  if (!assessment) fail(`/assessments/${assessmentId}/product`, "Assessment not found");
+
+  const fields = PRODUCT_FIELDS[assessment.product as keyof typeof PRODUCT_FIELDS];
+  const payload: Record<string, string> = {};
+  for (const f of fields) {
+    const raw = String(formData.get(f.name) ?? "").trim();
+    if (f.kind === "select" && !raw) {
+      fail(`/assessments/${assessmentId}/product`, `Select ${f.label}`);
+    }
+    if (raw) payload[f.name] = raw;
+  }
+  const notes = String(formData.get("notes") ?? "").trim();
+  if (notes) payload.notes = notes;
+
+  const record = {
+    assessmentId,
+    product: assessment.product,
+    payload: payload as never,
+    notes: notes || null,
+  };
+  const before = await prisma.productAssessment.findUnique({ where: { assessmentId } });
+  const after = before
+    ? await prisma.productAssessment.update({ where: { assessmentId }, data: record })
+    : await prisma.productAssessment.create({ data: record });
+  await prisma.assessment.update({
+    where: { id: assessmentId },
+    data: { currentStage: Math.max(assessment.currentStage, 9) },
+  });
+  await logAudit({
+    actorId: session.user.id,
+    assessmentId,
+    action: "PRODUCT_SAVE",
+    entityType: "ProductAssessment",
+    entityId: after.id,
+    before,
+    after,
+  });
+  revalidatePath(`/assessments/${assessmentId}/product`);
 }
 
 export async function uploadDocument(assessmentId: string, formData: FormData) {

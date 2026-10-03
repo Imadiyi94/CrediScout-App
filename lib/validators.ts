@@ -90,3 +90,27 @@ export const creditRiskSchema = z.object({
   guarantorNaira: z.string().regex(/^[0-9, ]*$/, "Enter a valid amount").default(""),
   multipleLenders: z.enum(["yes", "no"]).default("no"),
 });
+
+const ratingField = z.coerce.number().int().min(1, "Rate 1–5").max(5, "Rate 1–5");
+
+export const qualitativeSchema = z.object({
+  history: ratingField,
+  industry: ratingField,
+  management: ratingField,
+  stability: ratingField,
+  concentration: ratingField,
+  seasonality: ratingField,
+  purpose: ratingField,
+  repayment: ratingField,
+  notes: z.string().trim().max(2000).default(""),
+});
+
+export const collateralSchema = z.object({
+  type: z.string().trim().min(2, "Describe the security").max(160),
+  ownership: z.string().trim().max(200).default(""),
+  estimatedNaira: z.string().regex(/^[0-9, ]+$/, "Enter a valid estimated value"),
+  verifiedNaira: z.string().regex(/^[0-9, ]*$/, "Enter a valid verified value").default(""),
+  marketability: z.enum(["High", "Medium", "Low"]),
+  encumbrancesNaira: z.string().regex(/^[0-9, ]*$/, "Enter a valid amount").default(""),
+  documentationStatus: z.enum(["PENDING", "VERIFIED", "REJECTED"]),
+});

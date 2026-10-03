@@ -14,6 +14,9 @@ const STAGE_LINKS = [
   { stage: 3, href: "documents", title: "Information & Documents", desc: "Uploads, extraction review, verification" },
   { stage: 4, href: "financials", title: "Financial Capacity", desc: "Revenue, cash flow, DTI, DSCR, obligations" },
   { stage: 5, href: "credit-risk", title: "Credit & Risk", desc: "History, exposure, utilisation, flags" },
+  { stage: 6, href: "qualitative", title: "Borrower / Business", desc: "Scorecard, management, stability" },
+  { stage: 7, href: "collateral", title: "Collateral & Security", desc: "Items, LTV, coverage" },
+  { stage: 8, href: "product", title: "Product Analysis", desc: "Product-specific risks" },
 ];
 
 export default async function AssessmentHubPage({ params }: { params: Promise<{ id: string }> }) {
@@ -72,7 +75,7 @@ export default async function AssessmentHubPage({ params }: { params: Promise<{ 
             </Card>
           </a>
         ))}
-        {[6, 7, 8, 9, 10, 11].map((n) => (
+        {[9, 10, 11].map((n) => (
           <Card key={n} className="opacity-60">
             <CardHeader>
               <CardTitle>Stage {n}</CardTitle>

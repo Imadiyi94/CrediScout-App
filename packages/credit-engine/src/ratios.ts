@@ -19,6 +19,19 @@ export function loanToIncome(loanKobo: bigint, incomeKobo: bigint): number | nul
   return new Decimal(loanKobo.toString()).div(incomeKobo.toString()).toNumber();
 }
 
+// Loan-to-Value: proposed exposure relative to security value.
+// Null when the security has no positive net value.
+export function ltv(loanKobo: bigint, netSecurityKobo: bigint): number | null {
+  if (netSecurityKobo <= 0n) return null;
+  return new Decimal(loanKobo.toString()).div(netSecurityKobo.toString()).toNumber();
+}
+
+// Net security value after existing encumbrances (floored at zero).
+export function netSecurityValue(verifiedOrEstimatedKobo: bigint, encumbrancesKobo: bigint): bigint {
+  const net = verifiedOrEstimatedKobo - encumbrancesKobo;
+  return net > 0n ? net : 0n;
+}
+
 export interface ExposureSplit {
   existingKobo: bigint;
   proposedKobo: bigint;
