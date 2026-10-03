@@ -114,3 +114,22 @@ export const collateralSchema = z.object({
   encumbrancesNaira: z.string().regex(/^[0-9, ]*$/, "Enter a valid amount").default(""),
   documentationStatus: z.enum(["PENDING", "VERIFIED", "REJECTED"]),
 });
+
+export const riskSummarySchema = z.object({
+  mitigations: z.string().trim().max(5000).default(""),
+});
+
+export const proposalSchema = z.object({
+  proposedNaira: z.string().regex(/^[0-9, ]+$/, "Enter a valid amount"),
+  proposedTenor: z.coerce.number().int().min(1).max(120),
+});
+
+export const confirmSchema = z.object({
+  decision: z.enum(["APPROVE", "REDUCED", "DECLINE", "REFER"]),
+  amountNaira: z.string().regex(/^[0-9, ]+$/, "Enter a valid amount"),
+  tenorMonths: z.coerce.number().int().min(1).max(120),
+  reasons: z.string().trim().min(10, "Give the key reasons").max(5000),
+  conditions: z.string().trim().max(5000).default(""),
+  overrideReason: z.string().trim().max(2000).default(""),
+  overrideRatePct: z.string().regex(/^([0-9]+(\.[0-9]{1,3})?)?$/, "Rate like 4.60").default(""),
+});

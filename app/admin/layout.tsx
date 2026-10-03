@@ -6,6 +6,7 @@ const NAV = [
   { href: "/admin/rates", title: "Lending rates", desc: "Tiered and fixed rate tables with effective dating" },
   { href: "/admin/thresholds", title: "Policy thresholds", desc: "DSCR minimums, DTI caps, LTV limits" },
   { href: "/admin/users", title: "Users", desc: "Analyst and admin accounts, roles, scopes" },
+  { href: "/admin/overrides", title: "Rate overrides", desc: "Pending analyst-proposed rate changes" },
   { href: "/admin/audit", title: "Audit log", desc: "Every mutation, override, and rate change" },
 ];
 

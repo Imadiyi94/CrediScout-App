@@ -174,6 +174,9 @@ model Assessment {
   repaymentSource      String
   repaymentFrequency   RepaymentFrequency @default(MONTHLY)
   existingExposureKobo BigInt            @default(0)
+  proposedAmountKobo   BigInt?
+  riskSummary          Json?
+  mitigationsText      String?
   createdAt            DateTime          @default(now())
   updatedAt            DateTime          @updatedAt
 
@@ -337,6 +340,7 @@ model RecommendationOverride {
   newValue         String?
   reason           String
   createdBy        String
+  status           String   @default("PENDING")
   approvedByAdmin  String?
   createdAt        DateTime @default(now())
 

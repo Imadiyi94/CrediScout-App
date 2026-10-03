@@ -17,6 +17,9 @@ const STAGE_LINKS = [
   { stage: 6, href: "qualitative", title: "Borrower / Business", desc: "Scorecard, management, stability" },
   { stage: 7, href: "collateral", title: "Collateral & Security", desc: "Items, LTV, coverage" },
   { stage: 8, href: "product", title: "Product Analysis", desc: "Product-specific risks" },
+  { stage: 9, href: "risk-summary", title: "Risk Summary", desc: "Strengths, risks, mitigations" },
+  { stage: 10, href: "amount", title: "Recommended Amount", desc: "Requested vs supportable" },
+  { stage: 11, href: "decision", title: "Final Decision", desc: "Explicit recommendation + schedule" },
 ];
 
 export default async function AssessmentHubPage({ params }: { params: Promise<{ id: string }> }) {
@@ -74,14 +77,6 @@ export default async function AssessmentHubPage({ params }: { params: Promise<{ 
               </CardContent>
             </Card>
           </a>
-        ))}
-        {[9, 10, 11].map((n) => (
-          <Card key={n} className="opacity-60">
-            <CardHeader>
-              <CardTitle>Stage {n}</CardTitle>
-              <CardDescription>Arrives in Phases 4–7 (financial engine → recommendation).</CardDescription>
-            </CardHeader>
-          </Card>
         ))}
       </div>
     </AppShell>

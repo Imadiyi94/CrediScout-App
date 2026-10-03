@@ -16,6 +16,9 @@ import {
   financialsSchema,
   profileUpdateSchema,
   qualitativeSchema,
+  riskSummarySchema,
+  proposalSchema,
+  confirmSchema,
 } from "@/lib/validators";
 import { putDocument } from "@/lib/storage";
 import { ALLOWED_MIME_PREFIXES, DOC_KINDS, MAX_UPLOAD_BYTES } from "@/lib/documents";
@@ -572,6 +575,261 @@ export async function uploadDocument(assessmentId: string, formData: FormData) {
     after: { kind, originalName: doc.originalName, sizeBytes: doc.sizeBytes },
   });
   revalidatePath(`/assessments/${assessmentId}/documents`);
+}
+
+export async function saveRiskSummary(assessmentId: string, formData: FormData) {
+  const session = await requireUser();
+  const assessment = await getAssessmentForUser(assessmentId, session);
+  if (!assessment) fail(`/assessments/${assessmentId}/risk-summary`, "Assessment not found");
+
+  const parsed = riskSummarySchema.safeParse({ mitigations: formData.get("mitigations") ?? "" });
+  if (!parsed.success) {
+    fail(`/assessments/${assessmentId}/risk-summary`, "Mitigations text is too long");
+  }
+  const flags = ((await prisma.creditProfile.findUnique({ where: { assessmentId } }))?.redFlags ?? []) as unknown as import("@engine/index").RiskFlag[];
+  const fin = await prisma.financialSnapshot.findUnique({ where: { assessmentId } });
+  const snapshot = {
+    strengths: buildStrengths(assessment as never, fin),
+    risks: flags,
+    savedAt: new Date().toISOString(),
+  };
+  await prisma.assessment.update({
+    where: { id: assessmentId },
+    data: {
+      riskSummary: snapshot as never,
+      mitigationsText: parsed.data.mitigations || null,
+      currentStage: Math.max(assessment.currentStage, 10),
+    },
+  });
+  await logAudit({
+    actorId: session.user.id,
+    assessmentId,
+    action: "RISKSUMMARY_SAVE",
+    entityType: "Assessment",
+    entityId: assessmentId,
+    after: { mitigations: parsed.data.mitigations || null },
+  });
+  revalidatePath(`/assessments/${assessmentId}/risk-summary`);
+}
+
+function buildStrengths(assessment: {
+  borrower: { clientStatusVerified: boolean };
+  financialSnapshot?: { dscr?: unknown } | null;
+  businessProfile?: { payload?: unknown } | null;
+  collaterals?: { id: string }[];
+}, fin: { dscr?: unknown; dti?: unknown } | null): string[] {
+  void assessment;
+  const out: string[] = [];
+  if (fin && fin.dscr !== null && fin.dscr !== undefined && Number(fin.dscr) >= 1.2) {
+    out.push(`Adequate debt-service cover at ${Number(fin.dscr).toFixed(2)}×.`);
+  }
+  if (fin && fin.dti !== null && fin.dti !== undefined && Number(fin.dti) <= 0.5) {
+    out.push(`Existing debt burden within policy at ${(Number(fin.dti) * 100).toFixed(1)}% of income.`);
+  }
+  return out;
+}
+
+export async function saveProposal(assessmentId: string, formData: FormData) {
+  const session = await requireUser();
+  const assessment = await getAssessmentForUser(assessmentId, session);
+  if (!assessment) fail(`/assessments/${assessmentId}/amount`, "Assessment not found");
+
+  const parsed = proposalSchema.safeParse({
+    proposedNaira: formData.get("proposedNaira"),
+    proposedTenor: formData.get("proposedTenor"),
+  });
+  if (!parsed.success) {
+    fail(`/assessments/${assessmentId}/amount`, parsed.error.issues[0]?.message ?? "Invalid proposal");
+  }
+  let amount = 0n;
+  try {
+    amount = parseNairaToKobo(parsed.data.proposedNaira);
+  } catch {
+    fail(`/assessments/${assessmentId}/amount`, "Amount must be a number in naira");
+  }
+  if (amount < 0n) fail(`/assessments/${assessmentId}/amount`, "Amount cannot be negative");
+  if (amount > assessment.requestedAmountKobo) {
+    fail(`/assessments/${assessmentId}/amount`, "Proposed amount cannot exceed the requested amount");
+  }
+  await prisma.assessment.update({
+    where: { id: assessmentId },
+    data: {
+      proposedAmountKobo: amount,
+      proposedTenorMonths: parsed.data.proposedTenor,
+      currentStage: Math.max(assessment.currentStage, 11),
+    },
+  });
+  await logAudit({
+    actorId: session.user.id,
+    assessmentId,
+    action: "PROPOSAL_SAVE",
+    entityType: "Assessment",
+    entityId: assessmentId,
+    after: { proposedAmountKobo: amount.toString(), proposedTenorMonths: parsed.data.proposedTenor },
+  });
+  revalidatePath(`/assessments/${assessmentId}/amount`);
+}
+
+export async function confirmRecommendation(assessmentId: string, formData: FormData) {
+  const session = await requireUser();
+  const assessment = await getAssessmentForUser(assessmentId, session);
+  if (!assessment) fail(`/assessments/${assessmentId}/decision`, "Assessment not found");
+
+  const parsed = confirmSchema.safeParse({
+    decision: formData.get("decision"),
+    amountNaira: formData.get("amountNaira"),
+    tenorMonths: formData.get("tenorMonths"),
+    reasons: formData.get("reasons"),
+    conditions: formData.get("conditions") ?? "",
+    overrideReason: formData.get("overrideReason") ?? "",
+    overrideRatePct: formData.get("overrideRatePct") ?? "",
+  });
+  if (!parsed.success) {
+    fail(`/assessments/${assessmentId}/decision`, parsed.error.issues[0]?.message ?? "Invalid decision");
+  }
+  const v = parsed.data;
+
+  // Recompute the system suggestion at confirmation time (never trust the form).
+  const { computeProposal } = await import("@/lib/recommendation");
+  const proposal = await computeProposal(assessmentId);
+  if (!proposal || !proposal.schedule) {
+    fail(`/assessments/${assessmentId}/decision`, "Cannot price this facility yet — resolve blockers first");
+  }
+
+  let amount = 0n;
+  try {
+    amount = parseNairaToKobo(v.amountNaira);
+  } catch {
+    fail(`/assessments/${assessmentId}/decision`, "Amount must be a number in naira");
+  }
+
+  const differs =
+    v.decision !== proposal.suggestion ||
+    amount !== proposal.recommendedKobo ||
+    v.tenorMonths !== proposal.tenorMonths;
+  if (differs && v.overrideReason.trim().length < 10) {
+    fail(
+      `/assessments/${assessmentId}/decision`,
+      "You changed the system suggestion — give a reason (min 10 characters)",
+    );
+  }
+
+  // Rebuild the schedule for the CONFIRMED amount/tenor (analyst may have adjusted).
+  const { rbSchedule, flatSchedule, scheduleEAR } = await import("@engine/index");
+  const build = proposal.rateType === "RB" ? rbSchedule : flatSchedule;
+  const schedule = build({
+    principalKobo: amount,
+    monthlyRatePct: Number(proposal.ratePct),
+    tenorMonths: v.tenorMonths,
+    frequency: assessment.repaymentFrequency as "MONTHLY" | "QUARTERLY" | "BULLET",
+  });
+
+  const existing = await prisma.recommendation.findUnique({ where: { assessmentId } });
+  const record = {
+    assessmentId,
+    decision: v.decision as "APPROVE" | "REDUCED" | "DECLINE" | "REFER",
+    requestedAmountKobo: assessment.requestedAmountKobo,
+    recommendedAmountKobo: amount,
+    recommendedTenorMonths: v.tenorMonths,
+    ratePctMonthly: proposal.ratePct,
+    rateType: proposal.rateType,
+    rateBasis: proposal.rateBasis,
+    installmentKobo: schedule.instalmentKobo,
+    totalInterestKobo: schedule.totalInterestKobo,
+    effectiveAnnualRatePct: (Math.round(scheduleEAR(schedule) * 100) / 100).toFixed(4),
+    reasons: v.reasons,
+    risks: proposal.flags as never,
+    mitigations: (assessment.mitigationsText ? assessment.mitigationsText.split("\n").map((s) => s.trim()).filter(Boolean) : []) as never,
+    conditions: v.conditions || null,
+    analystNotes: differs ? v.overrideReason : null,
+    decidedBy: session.user.id,
+  };
+  const rec = existing
+    ? await prisma.recommendation.update({ where: { assessmentId }, data: record })
+    : await prisma.recommendation.create({ data: record });
+
+  if (differs) {
+    await prisma.recommendationOverride.create({
+      data: {
+        recommendationId: rec.id,
+        field: "DECISION",
+        oldValue: `${proposal.suggestion} ${proposal.recommendedKobo.toString()} x${proposal.tenorMonths}`,
+        newValue: `${v.decision} ${amount.toString()} x${v.tenorMonths}`,
+        reason: v.overrideReason,
+        createdBy: session.user.id,
+        status: "APPROVED",
+        approvedByAdmin: session.user.id,
+      },
+    });
+  }
+
+  // Analyst-proposed rate differing from resolved → pending Admin approval.
+  if (v.overrideRatePct.trim() !== "" && v.overrideRatePct !== proposal.ratePct) {
+    await prisma.recommendationOverride.create({
+      data: {
+        recommendationId: rec.id,
+        field: "RATE",
+        oldValue: `${proposal.ratePct}% ${proposal.rateType}`,
+        newValue: `${v.overrideRatePct}% ${proposal.rateType}`,
+        reason: v.overrideReason || "Rate adjustment proposed at decision",
+        createdBy: session.user.id,
+        status: "PENDING",
+      },
+    });
+  }
+
+  // Reprice collateral LTVs against the confirmed amount; record proposed service.
+  const collaterals = await prisma.collateral.findMany({ where: { assessmentId } });
+  for (const c of collaterals) {
+    const { netSecurityValue, ltv } = await import("@engine/index");
+    const net = netSecurityValue(c.verifiedValueKobo ?? c.estimatedValueKobo, c.encumbrancesKobo);
+    const ltvVal = amount > 0n ? ltv(amount, net) : null;
+    await prisma.collateral.update({
+      where: { id: c.id },
+      data: { ltv: ltvVal === null ? null : ltvVal.toFixed(4) },
+    });
+  }
+  await prisma.financialSnapshot.update({
+    where: { assessmentId },
+    data: { proposedDebtServiceKobo: schedule.instalmentKobo },
+  });
+  await prisma.assessment.update({
+    where: { id: assessmentId },
+    data: { status: "RECOMMENDED" },
+  });
+
+  // Surface HIGH flags as alerts on non-declined decisions.
+  if (v.decision === "APPROVE" || v.decision === "REDUCED") {
+    for (const f of proposal.flags.filter((fl) => fl.severity === "HIGH")) {
+      const dup = await prisma.alert.findFirst({
+        where: { assessmentId, code: f.code, resolvedAt: null },
+      });
+      if (!dup) {
+        await prisma.alert.create({
+          data: {
+            assessmentId,
+            code: f.code,
+            severity: "HIGH",
+            message: `${v.decision === "APPROVE" ? "Approved" : "Approved at reduced amount"} with HIGH flag: ${f.title}`,
+            whyItMatters: f.why,
+            stage: 11,
+          },
+        });
+      }
+    }
+  }
+
+  await logAudit({
+    actorId: session.user.id,
+    assessmentId,
+    action: "RECOMMENDATION_CONFIRM",
+    entityType: "Recommendation",
+    entityId: rec.id,
+    before: existing,
+    after: rec,
+    reason: differs ? v.overrideReason : undefined,
+  });
+  revalidatePath(`/assessments/${assessmentId}/decision`);
 }
 
 export async function setDocumentStatus(
