@@ -102,10 +102,11 @@ async function main() {
       update: {},
       create: { name, email, emailVerified: true, role: role as "ADMIN" | "ANALYST", scopes: [...scopes] },
     });
+    // Better Auth credential accounts key accountId = user.id (not email).
     await prisma.account.upsert({
       where: { id: `seed-${email}` },
-      update: { password: await hashPassword(password) },
-      create: { id: `seed-${email}`, userId: user.id, accountId: email, providerId: "credential", password: await hashPassword(password) },
+      update: { userId: user.id, accountId: user.id, providerId: "credential", password: await hashPassword(password) },
+      create: { id: `seed-${email}`, userId: user.id, accountId: user.id, providerId: "credential", password: await hashPassword(password) },
     });
   }
 

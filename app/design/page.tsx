@@ -79,7 +79,7 @@ export default function DesignPage() {
             <Badge tone="navy">RETURNING CLIENT</Badge>
           </div>
           <div className="flex flex-wrap gap-2">
-            <RateBadge ratePct="4.60" rateType="RB" basis="Returning · SBL ₦5–9.9m" />
+            <RateBadge ratePct="5.00" rateType="RB" basis="Returning · SBL ≤ ₦5m" />
             <RateBadge ratePct="3.00" rateType="FLAT" basis="Clean Energy · all amounts" />
           </div>
           <div className="grid gap-3 sm:grid-cols-3">
@@ -101,7 +101,7 @@ export default function DesignPage() {
             </Field>
           </div>
           <p className="num text-sm text-ink">
-            Money formatting: {formatKobo(500000000)} · {formatKobo(320000000)} · {formatKobo(35294200)}
+            Money formatting: {formatKobo(500000000)} · {formatKobo(320000000)} · {formatKobo(36103700)}
           </p>
         </CardContent>
       </Card>
@@ -170,11 +170,11 @@ export default function DesignPage() {
             requestedKobo={500000000}
             recommendedKobo={320000000}
             tenorMonths={12}
-            ratePct="4.60"
+            ratePct="5.00"
             rateType="RB"
-            rateBasis="Returning client · SBL tier ₦5–9.9m"
-            instalmentKobo={35294200}
-            totalInterestKobo={103530400}
+            rateBasis="Returning client · SBL tier ≤ ₦5m"
+            instalmentKobo={36103700}
+            totalInterestKobo={113244400}
             basis="assessed repayment capacity supports a lower exposure than requested. Existing obligations and cash-flow variability limit the supportable facility."
             conditions="satisfactory verification of financials and security documentation."
           />
@@ -198,7 +198,7 @@ export default function DesignPage() {
           requestedKobo={500000000}
           recommendedKobo={320000000}
           decision="Approve at reduced amount"
-          rateLine="4.60% RB / month · Returning · SBL ₦5–9.9m"
+          rateLine="5.00% RB / month · Returning · SBL ≤ ₦5m"
           reasons="adequate repayment capacity, acceptable exposure, satisfactory cash flow."
           conditions="verify financials and security documentation."
         />
