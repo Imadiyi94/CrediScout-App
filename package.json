@@ -14,7 +14,8 @@
     "db:push": "prisma db push",
     "db:seed": "tsx prisma/seed.ts",
     "db:studio": "prisma studio",
-    "test:engine": "vitest run packages/credit-engine"
+    "test:engine": "vitest run packages/credit-engine",
+    "audit:security": "tsx scripts/security-audit.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1146.0",

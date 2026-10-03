@@ -15,7 +15,13 @@ export const auth = betterAuth({
     },
   },
   plugins: [admin()],
-  trustedOrigins: process.env.BETTER_AUTH_URL ? [process.env.BETTER_AUTH_URL] : undefined,
+  trustedOrigins: [
+    ...(process.env.BETTER_AUTH_URL ? [process.env.BETTER_AUTH_URL] : []),
+    // Local dev servers (never in production).
+    ...(process.env.NODE_ENV === "production"
+      ? []
+      : ["http://localhost:3000", "http://localhost:3005", "http://127.0.0.1:3005"]),
+  ],
 });
 
 export type Session = typeof auth.$Infer.Session;

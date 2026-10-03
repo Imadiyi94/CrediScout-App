@@ -6,6 +6,10 @@ RUN npm install
 
 FROM node:22-alpine AS builder
 WORKDIR /app
+# Dummy build-time env (real values come from runtime environment).
+ARG DATABASE_URL="postgresql://user:pass@localhost:5432/db?schema=public"
+ARG BETTER_AUTH_SECRET="docker-build-dummy-secret-min-32-chars"
+ARG BETTER_AUTH_URL="http://localhost:3000"
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 RUN npx prisma generate && npm run build
