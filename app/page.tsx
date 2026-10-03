@@ -1,6 +1,10 @@
-import Link from "next/link";
+import { redirect } from "next/navigation";
+import { getSession } from "@/lib/auth-helpers";
 
-export default function Home() {
+export default async function Home() {
+  const session = await getSession();
+  if (session?.user) redirect("/dashboard");
+
   return (
     <main className="min-h-screen">
       <header className="bg-ink text-white">
@@ -14,36 +18,52 @@ export default function Home() {
               CREDIT ANALYSIS &amp; LENDING DECISIONS
             </p>
           </div>
-          <nav className="ml-auto flex gap-1 text-sm">
-            <span className="rounded-lg bg-white/10 px-3 py-1.5">Assessments</span>
-            <span className="rounded-lg px-3 py-1.5 text-slate-300">Borrowers</span>
-            <span className="rounded-lg px-3 py-1.5 text-slate-300">Admin</span>
+          <nav className="ml-auto">
+            <a
+              href="/login"
+              className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-white"
+            >
+              Sign in
+            </a>
           </nav>
         </div>
       </header>
-      <div className="mx-auto max-w-5xl px-6 py-10">
-        <h1 className="text-3xl font-extrabold text-ink">
-          Phase 0 scaffold is live
+      <div className="mx-auto max-w-5xl px-6 py-16 text-center">
+        <h1 className="mx-auto max-w-2xl text-4xl font-extrabold tracking-tight text-ink">
+          Turn borrower information into explicit, evidence-based lending recommendations.
         </h1>
-        <p className="mt-2 max-w-2xl text-slate-600">
-          Foundations are in place: Next.js + TypeScript + Tailwind, Prisma +
-          PostgreSQL 16, Better Auth, R2-compatible file storage, Docker
-          Compose, and CI. Phase 1 (design system) and Phase 2 (data/auth/admin)
-          build on this.
+        <p className="mx-auto mt-4 max-w-xl text-slate-600">
+          Structured financial and risk analysis across 11 stages — capacity, credit,
+          collateral, product-specific risks, supportable amount, correct lending rate,
+          and a decision you can explain.
         </p>
-        <div className="mt-6 flex gap-3">
-          <Link
-            href="/api/health"
-            className="rounded-lg bg-primary px-4 py-2.5 text-sm font-semibold text-white hover:bg-primary-hover"
+        <div className="mt-8 flex justify-center gap-3">
+          <a
+            href="/login"
+            className="rounded-lg bg-primary px-6 py-3 text-sm font-semibold text-white hover:bg-primary-hover"
           >
-            Check API health
-          </Link>
-          <Link
-            href="https://github.com/Imadiyi94/CrediScout-PRD"
-            className="rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-ink"
+            Sign in to start
+          </a>
+          <a
+            href="/design"
+            className="rounded-lg border border-slate-300 bg-white px-6 py-3 text-sm font-semibold text-ink"
           >
-            Read the PRD
-          </Link>
+            View design system
+          </a>
+        </div>
+        <div className="num mx-auto mt-10 grid max-w-3xl gap-3 text-left sm:grid-cols-3">
+          <div className="rounded-xl border border-slate-200 bg-white p-4">
+            <p className="text-2xl font-extrabold text-ink">11</p>
+            <p className="text-sm text-slate-500">stages from intake to explicit decision</p>
+          </div>
+          <div className="rounded-xl border border-slate-200 bg-white p-4">
+            <p className="text-2xl font-extrabold text-ink">6</p>
+            <p className="text-sm text-slate-500">loan products with automatic rate resolution</p>
+          </div>
+          <div className="rounded-xl border border-slate-200 bg-white p-4">
+            <p className="text-2xl font-extrabold text-ink">57</p>
+            <p className="text-sm text-slate-500">engine tests guarding every calculation</p>
+          </div>
         </div>
       </div>
     </main>
