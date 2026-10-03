@@ -4,6 +4,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { AssessmentStepper } from "@/components/domain/assessment-stepper";
 import { AlertBanner } from "@/components/domain/alert-banner";
+import { ChatBox } from "@/components/ai/chat-box";
 import { Button } from "@/components/ui/button";
 import { requireUser } from "@/lib/auth-helpers";
 import { getAssessmentForUser, stageStatesFor } from "@/lib/assessments";
@@ -92,6 +93,16 @@ export default async function AssessmentHubPage({ params }: { params: Promise<{ 
           </CardContent>
         </Card>
       )}
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Ask CrediScout AI</CardTitle>
+          <CardDescription>Questions about this assessment, answered from its facts and figures.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <ChatBox assessmentId={assessment.id} />
+        </CardContent>
+      </Card>
 
       <div className="grid gap-3 md:grid-cols-2">
         {STAGE_LINKS.map((s) => (

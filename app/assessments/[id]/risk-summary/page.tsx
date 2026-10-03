@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Field, Input } from "@/components/ui/input";
 import { AlertBanner } from "@/components/domain/alert-banner";
 import { RiskRow } from "@/components/domain/risk-row";
+import { NarrativePanel } from "@/components/ai/narrative-panel";
 import { requireUser } from "@/lib/auth-helpers";
 import { getAssessmentForUser } from "@/lib/assessments";
 import { prisma } from "@/lib/db";
@@ -96,6 +97,16 @@ export default async function RiskSummaryPage({
           {flags.length === 0 && metricRisks.length === 0 && (
             <AlertBanner title="No material risks." message="No flags and all metrics within policy." tone="info" />
           )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>AI risk narrative</CardTitle>
+          <CardDescription>Three-paragraph draft from this assessment&apos;s numbers. You own the final wording.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <NarrativePanel assessmentId={id} />
         </CardContent>
       </Card>
 

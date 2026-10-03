@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Field, Input, Select } from "@/components/ui/input";
 import { AlertBanner } from "@/components/domain/alert-banner";
+import { ExtractButton } from "@/components/ai/extract-button";
 import { requireUser } from "@/lib/auth-helpers";
 import { getAssessmentForUser } from "@/lib/assessments";
 import { DOC_KINDS, DOC_KIND_LABELS, CRITICAL_KINDS, type DocKind } from "@/lib/documents";
@@ -110,6 +111,7 @@ export default async function DocumentsPage({
                         <a href={`/api/documents/${d.id}`} className="font-semibold text-primary">
                           {d.originalName}
                         </a>
+                        <ExtractButton documentId={d.id} />
                       </td>
                       <td className="px-3 py-2">
                         {DOC_KIND_LABELS[d.kind as DocKind] ?? d.kind}
