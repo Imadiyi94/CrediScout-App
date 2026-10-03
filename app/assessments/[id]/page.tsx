@@ -20,6 +20,7 @@ const STAGE_LINKS = [
   { stage: 9, href: "risk-summary", title: "Risk Summary", desc: "Strengths, risks, mitigations" },
   { stage: 10, href: "amount", title: "Recommended Amount", desc: "Requested vs supportable" },
   { stage: 11, href: "decision", title: "Final Decision", desc: "Explicit recommendation + schedule" },
+  { stage: 12, href: "summary", title: "Summary & Export", desc: "Stakeholder views + PDF" },
 ];
 
 export default async function AssessmentHubPage({ params }: { params: Promise<{ id: string }> }) {
