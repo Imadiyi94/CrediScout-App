@@ -7,6 +7,7 @@ const NAV = [
   { href: "/admin/thresholds", title: "Policy thresholds", desc: "DSCR minimums, DTI caps, LTV limits" },
   { href: "/admin/users", title: "Users", desc: "Analyst and admin accounts, roles, scopes" },
   { href: "/admin/overrides", title: "Rate overrides", desc: "Pending analyst-proposed rate changes" },
+  { href: "/admin/analytics", title: "Analytics", desc: "Pipeline, decisions, overrides, haircuts" },
   { href: "/admin/audit", title: "Audit log", desc: "Every mutation, override, and rate change" },
 ];
 

@@ -3,8 +3,11 @@ import { AppShell } from "@/components/layout/app-shell";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { AssessmentStepper } from "@/components/domain/assessment-stepper";
+import { AlertBanner } from "@/components/domain/alert-banner";
+import { Button } from "@/components/ui/button";
 import { requireUser } from "@/lib/auth-helpers";
 import { getAssessmentForUser, stageStatesFor } from "@/lib/assessments";
+import { resolveAlert } from "../actions";
 import { formatKobo } from "@/lib/format";
 import { PRODUCT_LABELS, type ProductKey } from "@/lib/products";
 import { CRITICAL_KINDS } from "@/lib/documents";
@@ -62,6 +65,33 @@ export default async function AssessmentHubPage({ params }: { params: Promise<{ 
           <AssessmentStepper states={states} />
         </CardContent>
       </Card>
+
+      {assessment.alerts.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Open alerts ({assessment.alerts.length})</CardTitle>
+            <CardDescription>Each alert names the stage that clears it. Resolving is audit-logged.</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {assessment.alerts.map((al) => (
+              <div key={al.id} className="flex items-start gap-3">
+                <div className="flex-1">
+                  <AlertBanner
+                    title={`${al.severity}: ${al.code.replace(/_/g, " ")}`}
+                    message={`${al.message} ${al.whyItMatters}`}
+                    actionLabel={al.stage ? `Clear at Stage ${al.stage} →` : undefined}
+                    tone={al.severity === "HIGH" ? "danger" : al.severity === "MEDIUM" ? "warning" : "info"}
+                  />
+                </div>
+                <form action={resolveAlert.bind(null, assessment.id)}>
+                  <input type="hidden" name="id" value={al.id} />
+                  <Button type="submit" variant="secondary" size="sm">Resolve</Button>
+                </form>
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+      )}
 
       <div className="grid gap-3 md:grid-cols-2">
         {STAGE_LINKS.map((s) => (

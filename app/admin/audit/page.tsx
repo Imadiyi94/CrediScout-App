@@ -1,16 +1,30 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Field, Input, Select } from "@/components/ui/input";
 import { prisma } from "@/lib/db";
 
-const TONE: Record<string, "green" | "amber" | "red" | "blue" | "navy" | "gray"> = {
-  RATE_CREATE: "navy",
-  RATE_EXPIRE: "amber",
-  THRESHOLD_UPDATE: "amber",
-  USER_UPDATE: "blue",
-};
+export default async function AuditPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ action?: string; actor?: string }>;
+}) {
+  const params = await searchParams;
+  const actionFilter = params.action?.trim() ?? "";
+  const actorFilter = params.actor?.trim() ?? "";
 
-export default async function AuditPage() {
+  const actors = await prisma.user.findMany({ select: { id: true, email: true }, orderBy: { email: "asc" } });
+  const actionList = await prisma.auditEvent.findMany({
+    select: { action: true },
+    distinct: ["action"],
+    orderBy: { action: "asc" },
+  });
+
   const events = await prisma.auditEvent.findMany({
+    where: {
+      ...(actionFilter ? { action: actionFilter } : {}),
+      ...(actorFilter ? { actorId: actorFilter } : {}),
+    },
     orderBy: { createdAt: "desc" },
     take: 100,
     include: { actor: { select: { email: true } } },
@@ -20,9 +34,30 @@ export default async function AuditPage() {
     <Card>
       <CardHeader>
         <CardTitle>Audit log</CardTitle>
-        <CardDescription>Append-only. Latest 100 events.</CardDescription>
+        <CardDescription>Append-only. Latest 100 events matching the filters.</CardDescription>
       </CardHeader>
-      <CardContent>
+      <CardContent className="space-y-4">
+        <form method="GET" action="/admin/audit" className="grid gap-3 sm:grid-cols-[1fr_1fr_auto]">
+          <Field label="Action">
+            <Select name="action" defaultValue={actionFilter}>
+              <option value="">All actions</option>
+              {actionList.map((a) => (
+                <option key={a.action} value={a.action}>{a.action}</option>
+              ))}
+            </Select>
+          </Field>
+          <Field label="Actor">
+            <Select name="actor" defaultValue={actorFilter}>
+              <option value="">All actors</option>
+              {actors.map((u) => (
+                <option key={u.id} value={u.id}>{u.email}</option>
+              ))}
+            </Select>
+          </Field>
+          <div className="flex items-end">
+            <Button type="submit" variant="secondary">Filter</Button>
+          </div>
+        </form>
         <div className="overflow-x-auto">
           <table className="w-full text-[13px]">
             <thead>
@@ -38,7 +73,7 @@ export default async function AuditPage() {
               {events.length === 0 && (
                 <tr>
                   <td colSpan={5} className="px-3 py-4 text-center text-slate-500">
-                    No events yet — rate, threshold, and user changes will appear here.
+                    No events match these filters.
                   </td>
                 </tr>
               )}
@@ -49,7 +84,7 @@ export default async function AuditPage() {
                   </td>
                   <td className="px-3 py-2">{e.actor.email}</td>
                   <td className="px-3 py-2">
-                    <Badge tone={TONE[e.action] ?? "gray"}>{e.action}</Badge>
+                    <Badge tone="gray">{e.action}</Badge>
                   </td>
                   <td className="px-3 py-2 font-mono text-xs">
                     {e.entityType} · {e.entityId.slice(0, 8)}…

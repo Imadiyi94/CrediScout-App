@@ -24,6 +24,7 @@ import { putDocument } from "@/lib/storage";
 import { ALLOWED_MIME_PREFIXES, DOC_KINDS, MAX_UPLOAD_BYTES } from "@/lib/documents";
 import { getAssessmentForUser } from "@/lib/assessments";
 import { PRODUCT_FIELDS } from "@/lib/product-fields";
+import { refreshAlerts } from "@/lib/alerts";
 import { dscr, dti, evaluateCreditRisk, loanToIncome, ltv, netSecurityValue, scoreQualitative } from "@engine/index";
 
 function fail(to: string, message: string): never {
@@ -168,6 +169,7 @@ export async function updateBorrowerProfile(assessmentId: string, formData: Form
     before,
     after,
   });
+  await refreshAlerts(assessmentId);
   revalidatePath(`/assessments/${assessmentId}/profile`);
 }
 
@@ -201,6 +203,7 @@ export async function verifyClientStatus(assessmentId: string, formData: FormDat
     after,
     reason: parsed.data.evidence,
   });
+  await refreshAlerts(assessmentId);
   revalidatePath(`/assessments/${assessmentId}/profile`);
 }
 
@@ -277,6 +280,7 @@ export async function saveFinancials(assessmentId: string, formData: FormData) {
     before,
     after,
   });
+  await refreshAlerts(assessmentId);
   revalidatePath(`/assessments/${assessmentId}/financials`);
 }
 
@@ -359,6 +363,7 @@ export async function saveCreditRisk(assessmentId: string, formData: FormData) {
     before,
     after,
   });
+  await refreshAlerts(assessmentId);
   revalidatePath(`/assessments/${assessmentId}/credit-risk`);
 }
 
@@ -406,6 +411,7 @@ export async function saveQualitative(assessmentId: string, formData: FormData) 
     before,
     after,
   });
+  await refreshAlerts(assessmentId);
   revalidatePath(`/assessments/${assessmentId}/qualitative`);
 }
 
@@ -467,6 +473,7 @@ export async function addCollateral(assessmentId: string, formData: FormData) {
     entityId: row.id,
     after: row,
   });
+  await refreshAlerts(assessmentId);
   revalidatePath(`/assessments/${assessmentId}/collateral`);
 }
 
@@ -486,6 +493,7 @@ export async function removeCollateral(assessmentId: string, formData: FormData)
     entityId: id,
     before: row,
   });
+  await refreshAlerts(assessmentId);
   revalidatePath(`/assessments/${assessmentId}/collateral`);
 }
 
@@ -529,6 +537,7 @@ export async function saveProductAssessment(assessmentId: string, formData: Form
     before,
     after,
   });
+  await refreshAlerts(assessmentId);
   revalidatePath(`/assessments/${assessmentId}/product`);
 }
 
@@ -574,6 +583,7 @@ export async function uploadDocument(assessmentId: string, formData: FormData) {
     entityId: doc.id,
     after: { kind, originalName: doc.originalName, sizeBytes: doc.sizeBytes },
   });
+  await refreshAlerts(assessmentId);
   revalidatePath(`/assessments/${assessmentId}/documents`);
 }
 
@@ -609,6 +619,7 @@ export async function saveRiskSummary(assessmentId: string, formData: FormData) 
     entityId: assessmentId,
     after: { mitigations: parsed.data.mitigations || null },
   });
+  await refreshAlerts(assessmentId);
   revalidatePath(`/assessments/${assessmentId}/risk-summary`);
 }
 
@@ -667,6 +678,7 @@ export async function saveProposal(assessmentId: string, formData: FormData) {
     entityId: assessmentId,
     after: { proposedAmountKobo: amount.toString(), proposedTenorMonths: parsed.data.proposedTenor },
   });
+  await refreshAlerts(assessmentId);
   revalidatePath(`/assessments/${assessmentId}/amount`);
 }
 
@@ -829,7 +841,27 @@ export async function confirmRecommendation(assessmentId: string, formData: Form
     after: rec,
     reason: differs ? v.overrideReason : undefined,
   });
+  await refreshAlerts(assessmentId);
   revalidatePath(`/assessments/${assessmentId}/decision`);
+}
+
+export async function resolveAlert(assessmentId: string, formData: FormData) {
+  const session = await requireUser();
+  const assessment = await getAssessmentForUser(assessmentId, session);
+  if (!assessment) fail(`/assessments/${assessmentId}`, "Assessment not found");
+  const id = String(formData.get("id") ?? "");
+  const row = await prisma.alert.findFirst({ where: { id, assessmentId, resolvedAt: null } });
+  if (!row) fail(`/assessments/${assessmentId}`, "Alert not found");
+  await prisma.alert.update({ where: { id }, data: { resolvedAt: new Date() } });
+  await logAudit({
+    actorId: session.user.id,
+    assessmentId,
+    action: "ALERT_RESOLVE",
+    entityType: "Alert",
+    entityId: id,
+    reason: String(formData.get("reason") ?? "Manually resolved by analyst"),
+  });
+  revalidatePath(`/assessments/${assessmentId}`);
 }
 
 export async function setDocumentStatus(
@@ -865,5 +897,6 @@ export async function setDocumentStatus(
     before: { verificationStatus: doc.verificationStatus },
     after: { verificationStatus: after.verificationStatus },
   });
+  await refreshAlerts(assessmentId);
   revalidatePath(`/assessments/${assessmentId}/documents`);
 }
