@@ -23,4 +23,5 @@ jobs:
       - run: npx prisma validate
       - run: npx prisma generate
       - run: npm run typecheck
+      - run: npm run test:engine
       - run: npm run build

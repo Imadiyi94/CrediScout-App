@@ -11,11 +11,13 @@ import {
   assessmentCreateSchema,
   borrowerSchema,
   clientStatusVerifySchema,
+  financialsSchema,
   profileUpdateSchema,
 } from "@/lib/validators";
 import { putDocument } from "@/lib/storage";
 import { ALLOWED_MIME_PREFIXES, DOC_KINDS, MAX_UPLOAD_BYTES } from "@/lib/documents";
 import { getAssessmentForUser } from "@/lib/assessments";
+import { dscr, dti, loanToIncome } from "@engine/index";
 
 function fail(to: string, message: string): never {
   redirect(`${to}?error=${encodeURIComponent(message)}`);
@@ -193,6 +195,82 @@ export async function verifyClientStatus(assessmentId: string, formData: FormDat
     reason: parsed.data.evidence,
   });
   revalidatePath(`/assessments/${assessmentId}/profile`);
+}
+
+export async function saveFinancials(assessmentId: string, formData: FormData) {
+  const session = await requireUser();
+  const assessment = await getAssessmentForUser(assessmentId, session);
+  if (!assessment) fail(`/assessments/${assessmentId}/financials`, "Assessment not found");
+
+  const parsed = financialsSchema.safeParse({
+    revenueNaira: formData.get("revenueNaira"),
+    opexNaira: formData.get("opexNaira") ?? "",
+    cashFlowNaira: formData.get("cashFlowNaira") ?? "",
+    existingServiceNaira: formData.get("existingServiceNaira") ?? "",
+    notes: formData.get("notes") ?? "",
+  });
+  if (!parsed.success) {
+    fail(`/assessments/${assessmentId}/financials`, parsed.error.issues[0]?.message ?? "Invalid figures");
+  }
+  const v = parsed.data;
+  let revenue: bigint;
+  let opex = 0n;
+  let existing = 0n;
+  try {
+    revenue = parseNairaToKobo(v.revenueNaira);
+    if (v.opexNaira.trim() !== "") opex = parseNairaToKobo(v.opexNaira);
+    if (v.existingServiceNaira.trim() !== "") existing = parseNairaToKobo(v.existingServiceNaira);
+  } catch {
+    fail(`/assessments/${assessmentId}/financials`, "Figures must be numbers in naira");
+  }
+  if (revenue! <= 0n) fail(`/assessments/${assessmentId}/financials`, "Revenue must be above zero");
+
+  const net = revenue! - opex;
+  let cashFlow = net;
+  if (v.cashFlowNaira.trim() !== "") {
+    try {
+      cashFlow = parseNairaToKobo(v.cashFlowNaira);
+    } catch {
+      fail(`/assessments/${assessmentId}/financials`, "Cash flow must be a number in naira");
+    }
+  }
+
+  const dtiVal = dti(existing, revenue!);
+  const dscrVal = dscr(cashFlow, existing);
+  const ltiVal = loanToIncome(assessment.requestedAmountKobo, revenue!);
+
+  const data = {
+    assessmentId,
+    revenueKobo: revenue!,
+    opexKobo: opex,
+    netIncomeKobo: net,
+    cashFlowKobo: cashFlow,
+    existingDebtServiceKobo: existing,
+    proposedDebtServiceKobo: 0n,
+    dti: dtiVal === null ? null : dtiVal.toFixed(4),
+    dscr: dscrVal === null ? null : dscrVal.toFixed(4),
+    loanToIncome: ltiVal === null ? null : ltiVal.toFixed(4),
+    source: "analyst-entry",
+    notes: v.notes || null,
+  };
+  const before = await prisma.financialSnapshot.findUnique({ where: { assessmentId } });
+  const after = before
+    ? await prisma.financialSnapshot.update({ where: { assessmentId }, data })
+    : await prisma.financialSnapshot.create({ data });
+  await prisma.assessment.update({
+    where: { id: assessmentId },
+    data: { currentStage: Math.max(assessment.currentStage, 5) },
+  });
+  await logAudit({
+    actorId: session.user.id,
+    assessmentId,
+    action: "FINANCIALS_SAVE",
+    entityType: "FinancialSnapshot",
+    entityId: after.id,
+    before,
+    after,
+  });
+  revalidatePath(`/assessments/${assessmentId}/financials`);
 }
 
 export async function uploadDocument(assessmentId: string, formData: FormData) {

@@ -101,7 +101,7 @@ export default function DesignPage() {
             </Field>
           </div>
           <p className="num text-sm text-ink">
-            Money formatting: {formatKobo(500000000)} · {formatKobo(320000000)} · {formatKobo(36103700)}
+            Money formatting: {formatKobo(500000000)} · {formatKobo(320000000)} · {formatKobo(36104131)}
           </p>
         </CardContent>
       </Card>
@@ -173,8 +173,8 @@ export default function DesignPage() {
             ratePct="5.00"
             rateType="RB"
             rateBasis="Returning client · SBL tier ≤ ₦5m"
-            instalmentKobo={36103700}
-            totalInterestKobo={113244400}
+            instalmentKobo={36104131}
+            totalInterestKobo={113249574}
             basis="assessed repayment capacity supports a lower exposure than requested. Existing obligations and cash-flow variability limit the supportable facility."
             conditions="satisfactory verification of financials and security documentation."
           />

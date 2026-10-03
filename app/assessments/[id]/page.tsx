@@ -12,6 +12,7 @@ import { CRITICAL_KINDS } from "@/lib/documents";
 const STAGE_LINKS = [
   { stage: 2, href: "profile", title: "Borrower & Loan Profile", desc: "Context, verification of client status" },
   { stage: 3, href: "documents", title: "Information & Documents", desc: "Uploads, extraction review, verification" },
+  { stage: 4, href: "financials", title: "Financial Capacity", desc: "Revenue, cash flow, DTI, DSCR, obligations" },
 ];
 
 export default async function AssessmentHubPage({ params }: { params: Promise<{ id: string }> }) {
@@ -70,7 +71,7 @@ export default async function AssessmentHubPage({ params }: { params: Promise<{ 
             </Card>
           </a>
         ))}
-        {[4, 5, 6, 7, 8, 9, 10, 11].map((n) => (
+        {[5, 6, 7, 8, 9, 10, 11].map((n) => (
           <Card key={n} className="opacity-60">
             <CardHeader>
               <CardTitle>Stage {n}</CardTitle>

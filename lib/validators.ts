@@ -69,3 +69,11 @@ export const profileUpdateSchema = borrowerSchema.extend({
 export const clientStatusVerifySchema = z.object({
   evidence: z.string().trim().min(10, "Describe the verification evidence").max(2000),
 });
+
+export const financialsSchema = z.object({
+  revenueNaira: z.string().regex(/^[0-9, ]+$/, "Enter a valid revenue figure"),
+  opexNaira: z.string().regex(/^[0-9, ]*$/, "Enter a valid expense figure").default(""),
+  cashFlowNaira: z.string().regex(/^[0-9, ]*$/, "Enter a valid cash-flow figure").default(""),
+  existingServiceNaira: z.string().regex(/^[0-9, ]*$/, "Enter a valid amount").default(""),
+  notes: z.string().trim().max(2000).default(""),
+});
