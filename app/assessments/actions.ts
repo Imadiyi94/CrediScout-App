@@ -11,13 +11,14 @@ import {
   assessmentCreateSchema,
   borrowerSchema,
   clientStatusVerifySchema,
+  creditRiskSchema,
   financialsSchema,
   profileUpdateSchema,
 } from "@/lib/validators";
 import { putDocument } from "@/lib/storage";
 import { ALLOWED_MIME_PREFIXES, DOC_KINDS, MAX_UPLOAD_BYTES } from "@/lib/documents";
 import { getAssessmentForUser } from "@/lib/assessments";
-import { dscr, dti, loanToIncome } from "@engine/index";
+import { dscr, dti, evaluateCreditRisk, loanToIncome } from "@engine/index";
 
 function fail(to: string, message: string): never {
   redirect(`${to}?error=${encodeURIComponent(message)}`);
@@ -271,6 +272,88 @@ export async function saveFinancials(assessmentId: string, formData: FormData) {
     after,
   });
   revalidatePath(`/assessments/${assessmentId}/financials`);
+}
+
+export async function saveCreditRisk(assessmentId: string, formData: FormData) {
+  const session = await requireUser();
+  const assessment = await getAssessmentForUser(assessmentId, session);
+  if (!assessment) fail(`/assessments/${assessmentId}/credit-risk`, "Assessment not found");
+
+  const parsed = creditRiskSchema.safeParse({
+    repaymentGrade: formData.get("repaymentGrade"),
+    priorDelinquencies: formData.get("priorDelinquencies"),
+    priorDefaults: formData.get("priorDefaults"),
+    arrearsNow: formData.get("arrearsNow") ?? "no",
+    totalExposureNaira: formData.get("totalExposureNaira") ?? "",
+    monthlyIncomeNaira: formData.get("monthlyIncomeNaira") ?? "",
+    openFacilities: formData.get("openFacilities"),
+    maxUtilizationPct: formData.get("maxUtilizationPct") ?? "",
+    guarantorNaira: formData.get("guarantorNaira") ?? "",
+    multipleLenders: formData.get("multipleLenders") ?? "no",
+  });
+  if (!parsed.success) {
+    fail(`/assessments/${assessmentId}/credit-risk`, parsed.error.issues[0]?.message ?? "Invalid input");
+  }
+  const v = parsed.data;
+
+  const naira = (s: string) => (s.trim() === "" ? 0n : parseNairaToKobo(s));
+  let totalExposure = 0n;
+  let income: bigint | null = null;
+  let guarantor = 0n;
+  try {
+    totalExposure = naira(v.totalExposureNaira);
+    if (v.monthlyIncomeNaira.trim() !== "") income = parseNairaToKobo(v.monthlyIncomeNaira);
+    guarantor = naira(v.guarantorNaira);
+  } catch {
+    fail(`/assessments/${assessmentId}/credit-risk`, "Money figures must be numbers in naira");
+  }
+
+  const result = evaluateCreditRisk({
+    repaymentGrade: v.repaymentGrade,
+    priorDelinquencies: v.priorDelinquencies,
+    priorDefaults: v.priorDefaults,
+    arrearsNow: v.arrearsNow === "yes",
+    totalExposureKobo: totalExposure,
+    monthlyIncomeKobo: income,
+    openFacilities: v.openFacilities,
+    maxUtilizationPct: v.maxUtilizationPct.trim() === "" ? null : Number(v.maxUtilizationPct),
+    guarantorExposureKobo: guarantor,
+    hasMultipleLenders: v.multipleLenders === "yes",
+  });
+
+  const data = {
+    assessmentId,
+    repaymentHistoryGrade: v.repaymentGrade,
+    delinquencyFlags: result.flags
+      .filter((f) => f.code.includes("DELINQUENCY") || f.code.includes("DEFAULT") || f.code === "ARREARS_NOW")
+      .map((f) => f.code),
+    totalExposureKobo: totalExposure,
+    utilizationPct:
+      v.maxUtilizationPct.trim() === "" ? null : Number(v.maxUtilizationPct).toFixed(2),
+    multipleBorrowingFlags: result.flags
+      .filter((f) => f.code === "MULTIPLE_BORROWING")
+      .map((f) => `${f.code}:facilities=${v.openFacilities}`),
+    guarantorObligationsKobo: guarantor,
+    redFlags: result.flags as never,
+  };
+  const before = await prisma.creditProfile.findUnique({ where: { assessmentId } });
+  const after = before
+    ? await prisma.creditProfile.update({ where: { assessmentId }, data })
+    : await prisma.creditProfile.create({ data });
+  await prisma.assessment.update({
+    where: { id: assessmentId },
+    data: { currentStage: Math.max(assessment.currentStage, 6) },
+  });
+  await logAudit({
+    actorId: session.user.id,
+    assessmentId,
+    action: "CREDITRISK_SAVE",
+    entityType: "CreditProfile",
+    entityId: after.id,
+    before,
+    after,
+  });
+  revalidatePath(`/assessments/${assessmentId}/credit-risk`);
 }
 
 export async function uploadDocument(assessmentId: string, formData: FormData) {

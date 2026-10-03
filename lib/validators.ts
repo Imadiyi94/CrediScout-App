@@ -77,3 +77,16 @@ export const financialsSchema = z.object({
   existingServiceNaira: z.string().regex(/^[0-9, ]*$/, "Enter a valid amount").default(""),
   notes: z.string().trim().max(2000).default(""),
 });
+
+export const creditRiskSchema = z.object({
+  repaymentGrade: z.enum(["A", "B", "C", "D", "NONE"]),
+  priorDelinquencies: z.coerce.number().int().min(0).max(999),
+  priorDefaults: z.coerce.number().int().min(0).max(999),
+  arrearsNow: z.enum(["yes", "no"]).default("no"),
+  totalExposureNaira: z.string().regex(/^[0-9, ]*$/, "Enter a valid exposure figure").default(""),
+  monthlyIncomeNaira: z.string().regex(/^[0-9, ]*$/, "Enter a valid income figure").default(""),
+  openFacilities: z.coerce.number().int().min(0).max(999),
+  maxUtilizationPct: z.string().regex(/^([0-9]{1,2}|100)?$/, "0–100").default(""),
+  guarantorNaira: z.string().regex(/^[0-9, ]*$/, "Enter a valid amount").default(""),
+  multipleLenders: z.enum(["yes", "no"]).default("no"),
+});
