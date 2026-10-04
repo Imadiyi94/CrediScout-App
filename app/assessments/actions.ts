@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { randomUUID } from "crypto";
 import { prisma } from "@/lib/db";
-import { requireUser } from "@/lib/auth-helpers";
+import { requireUser, sessionRole } from "@/lib/auth-helpers";
 import { logAudit } from "@/lib/audit";
 import { parseNairaToKobo } from "@/lib/format";
 import {
@@ -25,6 +25,7 @@ import { ALLOWED_MIME_PREFIXES, DOC_KINDS, MAX_UPLOAD_BYTES } from "@/lib/docume
 import { getAssessmentForUser } from "@/lib/assessments";
 import { PRODUCT_FIELDS } from "@/lib/product-fields";
 import { refreshAlerts } from "@/lib/alerts";
+import { disburseLoan } from "@/lib/disbursements";
 import { dscr, dti, evaluateCreditRisk, loanToIncome, ltv, netSecurityValue, scoreQualitative } from "@engine/index";
 
 function fail(to: string, message: string): never {
@@ -862,6 +863,22 @@ export async function resolveAlert(assessmentId: string, formData: FormData) {
     reason: String(formData.get("reason") ?? "Manually resolved by analyst"),
   });
   revalidatePath(`/assessments/${assessmentId}`);
+}
+
+export async function disburseLoanAction(assessmentId: string, formData: FormData) {
+  const session = await requireUser();
+  if (sessionRole(session) !== "ADMIN") {
+    fail(`/assessments/${assessmentId}/decision`, "Only admins can disburse loans");
+  }
+  const out = await disburseLoan({
+    assessmentId,
+    accountNumber: String(formData.get("accountNumber") ?? "").trim(),
+    bankCode: String(formData.get("bankCode") ?? "").trim(),
+    adminId: session.user.id,
+  });
+  if (!out.ok) fail(`/assessments/${assessmentId}/decision`, out.error);
+  await refreshAlerts(assessmentId);
+  revalidatePath(`/assessments/${assessmentId}/decision`);
 }
 
 export async function setDocumentStatus(

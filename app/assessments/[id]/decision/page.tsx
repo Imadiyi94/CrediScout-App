@@ -7,12 +7,13 @@ import { Field, Input, Select } from "@/components/ui/input";
 import { AlertBanner } from "@/components/domain/alert-banner";
 import { RecommendationPanel } from "@/components/domain/recommendation-panel";
 import { RepaymentScheduleTable, type ScheduleRow } from "@/components/domain/repayment-schedule-table";
-import { requireUser } from "@/lib/auth-helpers";
+import { requireUser, sessionRole } from "@/lib/auth-helpers";
 import { getAssessmentForUser } from "@/lib/assessments";
 import { prisma } from "@/lib/db";
 import { formatKobo } from "@/lib/format";
 import { computeProposal } from "@/lib/recommendation";
-import { confirmRecommendation } from "../../actions";
+import { listBanks } from "@/lib/paystack";
+import { confirmRecommendation, disburseLoanAction } from "../../actions";
 
 export default async function DecisionPage({
   params,
@@ -86,6 +87,7 @@ export default async function DecisionPage({
           basis={saved.reasons ?? "—"}
           conditions={saved.conditions ?? "—"}
         />
+        <DisbursementCard assessmentId={id} isAdmin={sessionRole(session) === "ADMIN"} />
         <Card>
           <CardHeader>
             <CardTitle>Repayment schedule</CardTitle>
@@ -188,6 +190,7 @@ export default async function DecisionPage({
         basis={proposal.reasonsDraft}
         conditions={proposal.conditionsDraft}
       />
+      <DisbursementCard assessmentId={id} isAdmin={sessionRole(session) === "ADMIN"} />
 
       <Card>
         <CardHeader>
@@ -280,5 +283,75 @@ function ConfirmForm({
         <Button type="submit">Confirm recommendation</Button>
       </div>
     </form>
+  );
+}
+
+async function DisbursementCard({ assessmentId, isAdmin }: { assessmentId: string; isAdmin: boolean }) {
+  const row = await prisma.disbursement.findUnique({ where: { assessmentId } });
+  let banks: { name: string; code: string }[] = [];
+  if (isAdmin && row?.status !== "SUCCESS") {
+    try {
+      banks = await listBanks();
+    } catch {
+      banks = [];
+    }
+  }
+  const tone = !row ? "gray" : row.status === "SUCCESS" ? "green" : row.status === "PENDING" ? "amber" : "red";
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Payment status</CardTitle>
+        <CardDescription>
+          {row ? (
+            <>Latest transfer: <Badge tone={tone as "green"}>{row.status}</Badge></>
+          ) : (
+            "This approved loan has not been disbursed yet."
+          )}
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        {row && (
+          <div className="num space-y-1 text-sm">
+            <p><span className="font-semibold text-ink">Amount: </span>{formatKobo(row.amountKobo)}</p>
+            <p><span className="font-semibold text-ink">To: </span>{row.bankCode} · {row.accountNumber}{row.accountName ? ` (${row.accountName})` : ""}</p>
+            <p><span className="font-semibold text-ink">Reference: </span><span className="font-mono text-[13px]">{row.reference}</span></p>
+            {row.transferCode && <p><span className="font-semibold text-ink">Paystack transfer: </span><span className="font-mono text-[13px]">{row.transferCode}</span></p>}
+            {row.failureReason && <p className="text-red-700"><span className="font-semibold">Failed: </span>{row.failureReason}</p>}
+            {row.status === "PENDING" && <p className="text-amber-800">Transfer sent — waiting for the Paystack callback to confirm.</p>}
+          </div>
+        )}
+        {isAdmin && row?.status !== "SUCCESS" && (
+          <form action={disburseLoanAction.bind(null, assessmentId)} className="grid gap-3 rounded-lg border border-slate-200 p-3 sm:grid-cols-[1fr_1fr_auto]">
+            <Field label="Borrower account (10 digits)">
+              <Input name="accountNumber" required placeholder="0123456789" className="num" inputMode="numeric" />
+            </Field>
+            {banks.length > 0 ? (
+              <Field label="Bank">
+                <Select name="bankCode" required defaultValue="">
+                  <option value="">— Select bank —</option>
+                  {banks.map((b) => (
+                    <option key={b.code} value={b.code}>{b.name}</option>
+                  ))}
+                </Select>
+              </Field>
+            ) : (
+              <Field label="Bank code">
+                <Input name="bankCode" required placeholder="e.g. 058" className="num" />
+              </Field>
+            )}
+            <div className="flex items-end">
+              <Button type="submit">{row ? "Retry disbursement" : "Disburse Loan"}</Button>
+            </div>
+            <p className="text-xs text-slate-500 sm:col-span-3">
+              Pays the recommended amount in kobo via Paystack (test mode). Blocked unless approved; never pays twice.
+            </p>
+          </form>
+        )}
+        {!isAdmin && (
+          <p className="text-[13px] text-slate-500">Only admins can disburse. Contact an admin with the borrower&apos;s account details.</p>
+        )}
+      </CardContent>
+    </Card>
   );
 }
