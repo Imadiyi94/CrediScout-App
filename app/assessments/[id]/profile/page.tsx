@@ -5,6 +5,9 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Field, Input, Select } from "@/components/ui/input";
 import { AlertBanner } from "@/components/domain/alert-banner";
+import { NinCard } from "@/components/kyc/nin-card";
+import { BvnCard } from "@/components/kyc/bvn-card";
+import { FaceCard } from "@/components/kyc/face-card";
 import { requireUser } from "@/lib/auth-helpers";
 import { getAssessmentForUser } from "@/lib/assessments";
 import { formatKobo } from "@/lib/format";
@@ -99,6 +102,18 @@ export default async function ProfilePage({
         </Card>
         <Button type="submit">Save profile → unlock Stage 3</Button>
       </form>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Identity verification (Dojah)</CardTitle>
+          <CardDescription>NIN and BVN are checked against official records; face matches the selfie to the ID photo. All checks run in sandbox until go-live.</CardDescription>
+        </CardHeader>
+        <CardContent className="grid gap-3 md:grid-cols-3">
+          <NinCard assessmentId={id} verified={b.ninVerified} number={b.ninNumber} name={b.ninName} />
+          <BvnCard assessmentId={id} verified={b.bvnVerified} number={b.bvnNumber} name={b.bvnName} />
+          <FaceCard assessmentId={id} match={b.faceMatch} score={b.faceScore === null ? null : Number(b.faceScore)} />
+        </CardContent>
+      </Card>
 
       <Card>
         <CardHeader>
