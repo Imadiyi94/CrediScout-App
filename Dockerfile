@@ -6,6 +6,7 @@ RUN npm install
 
 FROM node:22-alpine AS builder
 WORKDIR /app
+ENV STANDALONE_OUTPUT=1
 # Dummy build-time env (real values come from runtime environment).
 ARG DATABASE_URL="postgresql://user:pass@localhost:5432/db?schema=public"
 ARG BETTER_AUTH_SECRET="docker-build-dummy-secret-min-32-chars"

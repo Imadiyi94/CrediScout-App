@@ -1,0 +1,8 @@
+# Netlify deployment (Next.js Runtime auto-detected).
+[build]
+  command = "npx prisma generate && npm run build"
+  publish = ".next"
+
+[build.environment]
+  NEXT_TELEMETRY_DISABLED = "1"
+  NODE_VERSION = "22"
