@@ -3,7 +3,7 @@ import type { NextRequest } from "next/server";
 
 const SESSION_COOKIES = ["better-auth.session_token", "__Secure-better-auth.session_token"];
 
-const PROTECTED_PREFIXES = ["/dashboard", "/admin", "/assessments", "/borrowers"];
+const PROTECTED_PREFIXES = ["/dashboard", "/admin", "/assessments", "/borrowers", "/documents"];
 
 export function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
@@ -27,6 +27,7 @@ export const config = {
     "/admin/:path*",
     "/assessments/:path*",
     "/borrowers/:path*",
+    "/documents/:path*",
     "/login",
   ],
 };

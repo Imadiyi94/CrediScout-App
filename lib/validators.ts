@@ -115,6 +115,18 @@ export const collateralSchema = z.object({
   documentationStatus: z.enum(["PENDING", "VERIFIED", "REJECTED"]),
 });
 
+export const adminCreateUserSchema = z.object({
+  name: z.string().trim().min(2, "Name is too short").max(120),
+  email: z.string().trim().email("Enter a valid email").max(160),
+  password: z.string().min(8, "Minimum 8 characters").max(128),
+  role: z.enum(["ANALYST", "ADMIN"]),
+});
+
+export const adminResetPasswordSchema = z.object({
+  userId: z.string().min(1),
+  newPassword: z.string().min(8, "Minimum 8 characters").max(128),
+});
+
 export const riskSummarySchema = z.object({
   mitigations: z.string().trim().max(5000).default(""),
 });

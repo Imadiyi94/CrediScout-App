@@ -5,7 +5,12 @@ export function AppShell({
   children: React.ReactNode;
   section?: string;
 }) {
-  const items = ["Assessments", "Borrowers", "Documents", "Admin"];
+  const items = [
+    { label: "Assessments", href: "/assessments" },
+    { label: "Borrowers", href: "/borrowers" },
+    { label: "Documents", href: "/documents" },
+    { label: "Admin", href: "/admin" },
+  ];
   return (
     <div className="min-h-screen">
       <header className="sticky top-0 z-10 bg-ink text-white">
@@ -21,16 +26,17 @@ export function AppShell({
           </div>
           <nav className="ml-auto flex gap-1 text-sm">
             {items.map((i) => (
-              <span
-                key={i}
+              <a
+                key={i.href}
+                href={i.href}
                 className={
-                  i === section
+                  i.label === section
                     ? "rounded-lg bg-white/10 px-3 py-1.5 text-white"
-                    : "rounded-lg px-3 py-1.5 text-slate-300"
+                    : "rounded-lg px-3 py-1.5 text-slate-300 hover:bg-white/10 hover:text-white"
                 }
               >
-                {i}
-              </span>
+                {i.label}
+              </a>
             ))}
           </nav>
         </div>
