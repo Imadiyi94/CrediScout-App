@@ -792,6 +792,20 @@ export async function confirmRecommendation(assessmentId: string, formData: Form
         status: "PENDING",
       },
     });
+    // Alert admins by email (Phase 9 notification). Never fails the confirmation.
+    try {
+      const { notifyAdminsRateOverride } = await import("@/lib/email");
+      await notifyAdminsRateOverride({
+        borrowerName: assessment.borrower.displayName,
+        assessmentId,
+        oldRate: `${proposal.ratePct}% ${proposal.rateType}`,
+        newRate: `${v.overrideRatePct}% ${proposal.rateType}`,
+        reason: v.overrideReason,
+        analystEmail: session.user.email,
+      });
+    } catch {
+      // Email is best-effort; the pending override in /admin/overrides is authoritative.
+    }
   }
 
   // Reprice collateral LTVs against the confirmed amount; record proposed service.
