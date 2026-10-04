@@ -159,6 +159,7 @@ model Borrower {
   updatedAt               DateTime     @updatedAt
 
   assessments Assessment[]
+  disbursements Disbursement[]
 }
 
 model Assessment {
@@ -188,6 +189,7 @@ model Assessment {
   businessProfile   BusinessProfile?
   productAssessment ProductAssessment?
   recommendation    Recommendation?
+  disbursement      Disbursement?
   collaterals       Collateral[]
   documents         Document[]
   alerts            Alert[]
@@ -401,4 +403,31 @@ model AuditEvent {
 
   @@index([assessmentId, createdAt])
   @@index([actorId])
+}
+
+// Paystack loan disbursement. One row per assessment; retries reuse the row
+// with a fresh Paystack reference and an incremented attempt count.
+model Disbursement {
+  id               String   @id @default(cuid())
+  assessmentId     String   @unique
+  borrowerId       String
+  amountKobo       BigInt
+  bankCode         String
+  bankName         String?
+  accountNumber    String
+  accountName      String?
+  recipientCode    String?
+  reference        String   @unique
+  transferCode     String?
+  status           String   @default("PENDING")
+  failureReason    String?
+  attempts         Int      @default(1)
+  initiatedBy      String
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  assessment Assessment @relation(fields: [assessmentId], references: [id], onDelete: Cascade)
+  borrower   Borrower   @relation(fields: [borrowerId], references: [id])
+
+  @@index([status])
 }
