@@ -155,6 +155,15 @@ model Borrower {
   clientStatusVerifiedAt  DateTime?
   clientStatusVerifiedBy  String?
   clientStatusEvidence    String?
+  ninNumber               String?
+  ninVerified             Boolean      @default(false)
+  ninName                 String?
+  bvnNumber               String?
+  bvnVerified             Boolean      @default(false)
+  bvnName                 String?
+  faceScore               Decimal?     @db.Decimal(5, 2)
+  faceMatch               Boolean?
+  kycVerifiedAt           DateTime?
   createdAt               DateTime     @default(now())
   updatedAt               DateTime     @updatedAt
 
