@@ -37,6 +37,29 @@ export default async function DocumentsPage({
   const assessment = await getAssessmentForUser(id, session);
   if (!assessment) notFound();
 
+  const kycOpen = !assessment.borrower.ninVerified || !assessment.borrower.bvnVerified;
+  if (kycOpen) {
+    return (
+      <AppShell section="Assessments">
+        <div>
+          <p className="text-sm text-slate-500">
+            <a href={`/assessments/${id}`} className="font-semibold text-primary">{assessment.borrower.displayName}</a> / Documents
+          </p>
+          <h1 className="text-2xl font-extrabold text-ink">Stage 3 — Information &amp; Documents</h1>
+        </div>
+        <AlertBanner
+          title="Stage 3 is locked."
+          message={`NIN ${assessment.borrower.ninVerified ? "verified ✓" : "NOT verified"} · BVN ${assessment.borrower.bvnVerified ? "verified ✓" : "NOT verified"}. Identity must be confirmed before any document counts.`}
+          actionLabel="Go to Stage 2 → verify NIN and BVN, then return here."
+          tone="danger"
+        />
+        <a href={`/assessments/${id}/profile`} className="rounded-lg bg-primary px-4 py-2.5 text-sm font-semibold text-white">
+          Open Stage 2 verification
+        </a>
+      </AppShell>
+    );
+  }
+
   const verifiedCritical = assessment.documents.filter(
     (d) => (CRITICAL_KINDS as string[]).includes(d.kind) && d.verificationStatus === "VERIFIED",
   ).length;

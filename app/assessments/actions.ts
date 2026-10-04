@@ -159,7 +159,7 @@ export async function updateBorrowerProfile(assessmentId: string, formData: Form
   });
   await prisma.assessment.update({
     where: { id: assessmentId },
-    data: { currentStage: Math.max(assessment.currentStage, 3) },
+    data: { currentStage: Math.max(assessment.currentStage, after.ninVerified && after.bvnVerified ? 3 : 2) },
   });
   await logAudit({
     actorId: session.user.id,
@@ -546,6 +546,9 @@ export async function uploadDocument(assessmentId: string, formData: FormData) {
   const session = await requireUser();
   const assessment = await getAssessmentForUser(assessmentId, session);
   if (!assessment) fail(`/assessments/${assessmentId}/documents`, "Assessment not found");
+  if (!assessment.borrower.ninVerified || !assessment.borrower.bvnVerified) {
+    fail(`/assessments/${assessmentId}/documents`, "Stage 3 is locked — verify NIN and BVN in Stage 2 first");
+  }
 
   const kind = String(formData.get("kind") ?? "");
   if (!(DOC_KINDS as readonly string[]).includes(kind)) {
@@ -888,6 +891,9 @@ export async function setDocumentStatus(
   const session = await requireUser();
   const assessment = await getAssessmentForUser(assessmentId, session);
   if (!assessment) fail(`/assessments/${assessmentId}/documents`, "Assessment not found");
+  if (!assessment.borrower.ninVerified || !assessment.borrower.bvnVerified) {
+    fail(`/assessments/${assessmentId}/documents`, "Stage 3 is locked — verify NIN and BVN in Stage 2 first");
+  }
 
   const id = String(formData.get("id") ?? "");
   const status = String(formData.get("status") ?? "");

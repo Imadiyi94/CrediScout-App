@@ -67,6 +67,15 @@ export default async function AssessmentHubPage({ params }: { params: Promise<{ 
         </CardContent>
       </Card>
 
+      {(!assessment.borrower.ninVerified || !assessment.borrower.bvnVerified) && (
+        <AlertBanner
+          title="Stage 3 locked — identity unverified."
+          message={`NIN ${assessment.borrower.ninVerified ? "verified ✓" : "NOT verified"} · BVN ${assessment.borrower.bvnVerified ? "verified ✓" : "NOT verified"}.`}
+          actionLabel="Clear at Stage 2 →"
+          tone="danger"
+        />
+      )}
+
       {assessment.alerts.length > 0 && (
         <Card>
           <CardHeader>
