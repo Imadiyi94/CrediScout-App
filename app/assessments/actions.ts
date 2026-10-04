@@ -6,7 +6,7 @@ import { randomUUID } from "crypto";
 import { prisma } from "@/lib/db";
 import { requireUser, sessionRole } from "@/lib/auth-helpers";
 import { logAudit } from "@/lib/audit";
-import { parseNairaToKobo } from "@/lib/format";
+import { parseNairaToKobo, formatKobo } from "@/lib/format";
 import {
   assessmentCreateSchema,
   borrowerSchema,
@@ -860,6 +860,38 @@ export async function confirmRecommendation(assessmentId: string, formData: Form
     reason: differs ? v.overrideReason : undefined,
   });
   await refreshAlerts(assessmentId);
+
+  // Borrower SMS on admin-confirmed APPROVE / DECLINE (best-effort).
+  if (
+    (v.decision === "APPROVE" || v.decision === "DECLINE") &&
+    sessionRole(session) === "ADMIN" &&
+    assessment.borrower.phone
+  ) {
+    const verdict =
+      v.decision === "APPROVE"
+        ? `approved for ${formatKobo(amount)}`
+        : "not approved at this time";
+    const text =
+      `Hello ${assessment.borrower.displayName}, your CrediScout loan application was ${verdict}. ` +
+      (v.decision === "APPROVE"
+        ? "Our team will contact you about disbursement."
+        : "Contact us for other options. Thank you.");
+    try {
+      const { sendSms } = await import("@/lib/sms");
+      await sendSms({ to: assessment.borrower.phone, message: text });
+      await logAudit({
+        actorId: session.user.id,
+        assessmentId,
+        action: "NOTIFY_SMS",
+        entityType: "Recommendation",
+        entityId: rec.id,
+        after: { to: assessment.borrower.phone, decision: v.decision },
+      });
+    } catch {
+      // SMS is best-effort (e.g. number not on the test allow-list); decision stands.
+    }
+  }
+
   revalidatePath(`/assessments/${assessmentId}/decision`);
 }
 
