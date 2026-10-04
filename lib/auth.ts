@@ -1,8 +1,9 @@
 import { betterAuth } from "better-auth";
 import { prismaAdapter } from "better-auth/adapters/prisma";
-import { admin } from "better-auth/plugins";
+import { admin, emailOTP } from "better-auth/plugins";
 import { nextCookies } from "better-auth/next-js";
 import { prisma } from "./db";
+import { sendEmail } from "./email";
 
 export const auth = betterAuth({
   database: prismaAdapter(prisma, { provider: "postgresql" }),
@@ -15,7 +16,23 @@ export const auth = betterAuth({
       active: { type: "boolean", defaultValue: true, input: false },
     },
   },
-  plugins: [admin(), nextCookies()],
+  plugins: [
+    admin(),
+    emailOTP({
+      otpLength: 6,
+      expiresIn: 600,
+      async sendVerificationOTP({ email, otp, type }) {
+        if (type === "sign-in" || type === "email-verification") {
+          await sendEmail({
+            to: email,
+            subject: "Your CrediScout sign-in code",
+            text: `Your CrediScout sign-in code is ${otp}. It expires in 10 minutes. If you did not request it, ignore this email.`,
+          });
+        }
+      },
+    }),
+    nextCookies(),
+  ],
   trustedOrigins: [
     ...(process.env.BETTER_AUTH_URL ? [process.env.BETTER_AUTH_URL] : []),
     // Local dev servers (never in production).
