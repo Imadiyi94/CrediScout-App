@@ -199,6 +199,7 @@ model Assessment {
   productAssessment ProductAssessment?
   recommendation    Recommendation?
   disbursement      Disbursement?
+  creditReports     CreditReport[]
   collaterals       Collateral[]
   documents         Document[]
   alerts            Alert[]
@@ -439,4 +440,21 @@ model Disbursement {
   borrower   Borrower   @relation(fields: [borrowerId], references: [id])
 
   @@index([status])
+}
+
+// One saved bureau pull per check (history kept — re-pulls add rows).
+model CreditReport {
+  id                String   @id @default(cuid())
+  assessmentId      String
+  bvn               String
+  provider          String
+  firstCentralScore Int?
+  crcScore          Int?
+  averageScore      Decimal? @db.Decimal(6, 2)
+  fullResponseJson  Json?
+  checkedAt         DateTime @default(now())
+
+  assessment Assessment @relation(fields: [assessmentId], references: [id], onDelete: Cascade)
+
+  @@index([assessmentId, checkedAt])
 }
