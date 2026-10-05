@@ -1,8 +1,10 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { getSession, sessionRole } from "@/lib/auth-helpers";
-import { getDocument } from "@/lib/storage";
+import { getFileUrl } from "@/lib/storage";
 
+// Short-lived (15 min) direct download link. Prefer the ownership-checked
+// streaming route for in-app downloads; use this for sharing/export flows.
 export async function GET(_req: Request, { params }: { params: Promise<{ id: string }> }) {
   const session = await getSession();
   if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -17,16 +19,10 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  let file: Awaited<ReturnType<typeof getDocument>>;
   try {
-    file = await getDocument(doc.fileKey);
+    const url = await getFileUrl(doc.fileKey, 900);
+    return NextResponse.json({ url, expiresInSeconds: 900, name: doc.originalName });
   } catch {
-    return NextResponse.json({ error: "File not found in storage" }, { status: 404 });
+    return NextResponse.json({ error: "Could not sign download link" }, { status: 502 });
   }
-  const headers: Record<string, string> = {
-    "Content-Type": file.contentType,
-    "Content-Disposition": `inline; filename="${doc.originalName.replace(/"/g, "")}"`,
-  };
-  if (file.size !== undefined) headers["Content-Length"] = String(file.size);
-  return new Response(file.stream, { headers });
 }
