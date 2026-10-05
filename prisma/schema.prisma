@@ -369,6 +369,8 @@ model Document {
   originalName       String
   mimeType           String?
   sizeBytes          Int?
+  storageMode        String   @default("local")
+  bucket             String?
   extractedJson      Json?
   verificationStatus VerificationStatus @default(PENDING)
   verifiedBy         String?

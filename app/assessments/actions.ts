@@ -569,6 +569,7 @@ export async function uploadDocument(assessmentId: string, formData: FormData) {
   const buffer = Buffer.from(await file.arrayBuffer());
   await putDocument(key, buffer, mime);
 
+  const { storageInfo } = await import("@/lib/storage");
   const doc = await prisma.document.create({
     data: {
       assessmentId,
@@ -577,6 +578,8 @@ export async function uploadDocument(assessmentId: string, formData: FormData) {
       originalName: file.name.slice(0, 200),
       mimeType: mime,
       sizeBytes: file.size,
+      storageMode: storageInfo().mode,
+      bucket: storageInfo().bucket,
     },
   });
   await logAudit({
