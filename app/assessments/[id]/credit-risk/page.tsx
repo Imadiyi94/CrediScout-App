@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Field, Input, Select } from "@/components/ui/input";
 import { AlertBanner } from "@/components/domain/alert-banner";
 import { RiskRow } from "@/components/domain/risk-row";
+import { BureauCards } from "@/components/bureau/bureau-cards";
 import { requireUser } from "@/lib/auth-helpers";
 import { getAssessmentForUser } from "@/lib/assessments";
 import { prisma } from "@/lib/db";
@@ -27,6 +28,10 @@ export default async function CreditRiskPage({
   if (!assessment) notFound();
 
   const profile = await prisma.creditProfile.findUnique({ where: { assessmentId: id } });
+  const latestReport = await prisma.creditReport.findFirst({
+    where: { assessmentId: id },
+    orderBy: { checkedAt: "desc" },
+  });
   const flags = ((profile?.redFlags ?? []) as unknown) as RiskFlag[];
   const worst = flags.reduce<RiskSeverity | null>(
     (w, f) => {
@@ -106,6 +111,32 @@ export default async function CreditRiskPage({
               <Button type="submit">Save &amp; evaluate risk</Button>
             </div>
           </form>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Credit bureau scores</CardTitle>
+          <CardDescription>Pulled per BVN and saved to the assessment history.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <BureauCards
+            assessmentId={id}
+            hasBvn={(assessment.borrower.bvnNumber ?? "").length === 11}
+            initial={
+              latestReport
+                ? {
+                    firstCentralScore: latestReport.firstCentralScore ?? 0,
+                    crcScore: latestReport.crcScore ?? 0,
+                    averageScore: Number(latestReport.averageScore ?? 0),
+                    mode: latestReport.provider.startsWith("MOCK") ? "MOCK" : "LIVE",
+                    providers: latestReport.provider.split("+"),
+                    checkedAt: latestReport.checkedAt.toISOString(),
+                    bvnMasked: `*** *** ${latestReport.bvn.slice(-3)}`,
+                  }
+                : null
+            }
+          />
         </CardContent>
       </Card>
 
