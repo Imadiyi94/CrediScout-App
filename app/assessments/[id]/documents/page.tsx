@@ -3,13 +3,13 @@ import { AppShell } from "@/components/layout/app-shell";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Field, Input, Select } from "@/components/ui/input";
 import { AlertBanner } from "@/components/domain/alert-banner";
 import { ExtractButton } from "@/components/ai/extract-button";
+import { FileUploader } from "@/components/documents/file-uploader";
 import { requireUser } from "@/lib/auth-helpers";
 import { getAssessmentForUser } from "@/lib/assessments";
-import { DOC_KINDS, DOC_KIND_LABELS, CRITICAL_KINDS, type DocKind } from "@/lib/documents";
-import { setDocumentStatus, uploadDocument } from "../../actions";
+import { DOC_KIND_LABELS, CRITICAL_KINDS, type DocKind } from "@/lib/documents";
+import { setDocumentStatus } from "../../actions";
 
 function statusTone(s: string): "green" | "amber" | "red" | "gray" {
   if (s === "VERIFIED") return "green";
@@ -85,25 +85,10 @@ export default async function DocumentsPage({
       <Card>
         <CardHeader>
           <CardTitle>Upload supporting document</CardTitle>
-          <CardDescription>PDF, images, CSV/Excel up to 10 MB. Stored in S3-compatible storage.</CardDescription>
+          <CardDescription>PDF, images, CSV/Excel up to 10 MB. Stored in S3-compatible storage (local stand-in now, R2 in cloud).</CardDescription>
         </CardHeader>
         <CardContent>
-          <form action={uploadDocument.bind(null, id)} className="grid items-end gap-3 sm:grid-cols-[1fr_2fr_auto]">
-            <Field label="Document kind">
-              <Select name="kind" defaultValue="bank-statement">
-                {DOC_KINDS.map((k) => (
-                  <option key={k} value={k}>
-                    {DOC_KIND_LABELS[k as DocKind]}
-                    {(CRITICAL_KINDS as string[]).includes(k) ? " ★" : ""}
-                  </option>
-                ))}
-              </Select>
-            </Field>
-            <Field label="File">
-              <Input name="file" type="file" required />
-            </Field>
-            <Button type="submit">Upload</Button>
-          </form>
+          <FileUploader assessmentId={id} />
         </CardContent>
       </Card>
 
@@ -123,6 +108,7 @@ export default async function DocumentsPage({
                     <th className="px-3 py-2">File</th>
                     <th className="px-3 py-2">Kind</th>
                     <th className="px-3 py-2 text-right">Size</th>
+                    <th className="px-3 py-2">Stored in</th>
                     <th className="px-3 py-2">Status</th>
                     <th className="px-3 py-2">Actions</th>
                   </tr>
@@ -141,6 +127,11 @@ export default async function DocumentsPage({
                         {(CRITICAL_KINDS as string[]).includes(d.kind) ? " ★" : ""}
                       </td>
                       <td className="px-3 py-2 text-right">{formatSize(d.sizeBytes)}</td>
+                      <td className="px-3 py-2">
+                        <Badge tone={d.storageMode === "r2" ? "blue" : "gray"}>
+                          {(d.storageMode ?? "local").toUpperCase()}
+                        </Badge>
+                      </td>
                       <td className="px-3 py-2">
                         <Badge tone={statusTone(d.verificationStatus)}>{d.verificationStatus}</Badge>
                       </td>
