@@ -4,6 +4,7 @@ out/
 dist/
 .env
 .env*.local
+.env.neon
 *.pem
 prisma/*.db
 coverage/
@@ -13,3 +14,4 @@ next-env.d.ts
 
 # Local Netlify folder
 .netlify
+.neon
