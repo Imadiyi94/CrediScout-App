@@ -12,11 +12,13 @@ services:
       - pgdata:/var/lib/postgresql/data
 
   # Local stand-in for Cloudflare R2 (same S3-compatible API).
-  # Adobe S3Mock — free, no license; creates the bucket on start.
+  # MinIO was requested but is uninstallable here (Docker Hub repo removed,
+  # no Windows binary published) — Adobe S3Mock fills the same role free.
+  # Creates the bucket on start.
   s3:
     image: adobe/s3mock:latest
     restart: unless-stopped
-    command: ["--initialBuckets=crediscout-docs"]
+    command: ["--initialBuckets=crediscout-documents"]
     ports:
       - "9090:9090"
     volumes:
