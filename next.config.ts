@@ -5,6 +5,9 @@ import type { NextConfig } from "next";
 const nextConfig: NextConfig = {
   ...(process.env.STANDALONE_OUTPUT === "1" ? { output: "standalone" as const } : {}),
   poweredByHeader: false,
+  // Keep the PDF engine out of the bundle so pdfkit resolves its own font
+  // assets at runtime (fixes MODULE_NOT_FOUND on serverless handlers).
+  serverExternalPackages: ["@react-pdf/renderer", "pdfkit"],
 };
 
 export default nextConfig;
