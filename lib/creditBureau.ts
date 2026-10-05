@@ -10,8 +10,9 @@ export function bureauMode(): BureauMode {
 
 // Absolute base for internal self-calls (server-to-self needs a full URL,
 // which is also why MOCK works unchanged on Netlify).
-function appBaseUrl(): string {
+function appBaseUrl(explicit?: string): string {
   const base =
+    explicit ||
     process.env.NEXT_PUBLIC_APP_URL ||
     process.env.BETTER_AUTH_URL ||
     "http://localhost:3005";
@@ -49,10 +50,12 @@ async function fetchLiveReport(bvn: string): Promise<BureauReport> {
 
 // MOCK path: internal self-call, so laptop and Netlify behave identically
 // (no external IP whitelisting involved).
-async function fetchMockReport(bvn: string): Promise<BureauReport> {
-  const res = await fetch(`${appBaseUrl()}/api/mock/credit-bureau/check`, {
+async function fetchMockReport(bvn: string, baseUrl?: string): Promise<BureauReport> {
+  const internalKey = process.env.INTERNAL_API_KEY;
+  if (!internalKey) throw new Error("INTERNAL_API_KEY is not configured");
+  const res = await fetch(`${appBaseUrl(baseUrl)}/api/mock/credit-bureau/check`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", "x-internal-key": internalKey },
     body: JSON.stringify({ bvn }),
   });
   const data = (await res.json().catch(() => null)) as {
@@ -85,9 +88,9 @@ async function fetchMockReport(bvn: string): Promise<BureauReport> {
   };
 }
 
-export async function getCreditBureauReport(bvn: string): Promise<BureauReport> {
+export async function getCreditBureauReport(bvn: string, opts?: { baseUrl?: string }): Promise<BureauReport> {
   const digits = bvn.replace(/\D/g, "");
   if (digits.length !== 11) throw new Error("BVN must be 11 digits");
   if (bureauMode() === "LIVE") return fetchLiveReport(digits);
-  return fetchMockReport(digits);
+  return fetchMockReport(digits, opts?.baseUrl);
 }
