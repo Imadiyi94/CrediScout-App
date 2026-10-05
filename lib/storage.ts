@@ -2,19 +2,33 @@ import {
   S3Client,
   PutObjectCommand,
   GetObjectCommand,
+  DeleteObjectCommand,
   HeadBucketCommand,
   CreateBucketCommand,
 } from "@aws-sdk/client-s3";
+import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 
 // R2 in staging/prod, Adobe S3Mock locally — identical S3-compatible calls.
 // Local is the default. Set STORAGE=r2 (with R2_* vars) to target Cloudflare.
-const useR2 = process.env.STORAGE === "r2";
+export function storageMode(): "local" | "r2" {
+  return process.env.STORAGE === "r2" ? "r2" : "local";
+}
+
+function r2Endpoint(): string {
+  const direct = process.env.R2_ENDPOINT;
+  if (direct && !direct.includes("<account-id>")) return direct;
+  const account = process.env.R2_ACCOUNT_ID;
+  if (!account) throw new Error("R2_ACCOUNT_ID is not set (or R2_ENDPOINT). Add R2 keys to .env.");
+  return `https://${account}.r2.cloudflarestorage.com`;
+}
+
+const useR2 = storageMode() === "r2";
 const endpoint = useR2
-  ? process.env.R2_ENDPOINT!
+  ? r2Endpoint()
   : process.env.S3_ENDPOINT_LOCAL || "http://localhost:9090";
 const bucket = useR2
-  ? process.env.R2_BUCKET!
-  : process.env.S3_BUCKET_LOCAL || "crediscout-docs";
+  ? process.env.R2_BUCKET || "crediscout-documents"
+  : process.env.S3_BUCKET_LOCAL || "crediscout-documents";
 
 const s3 = new S3Client({
   endpoint,
@@ -45,7 +59,28 @@ export async function ensureBucket() {
 }
 
 export function storageInfo() {
-  return { endpoint, bucket };
+  return { mode: storageMode(), endpoint, bucket };
+}
+
+// Upload any file (documents, CAC, collateral photos, statements).
+export async function uploadFile(key: string, body: Buffer, contentType: string) {
+  await ensureBucket();
+  await s3.send(
+    new PutObjectCommand({ Bucket: bucket, Key: key, Body: body, ContentType: contentType }),
+  );
+  return { key, bucket };
+}
+
+// Short-lived download link (default 15 minutes). Prefer the ownership-checked
+// /api/documents/[id] route for in-app downloads; use this for sharing.
+export async function getFileUrl(key: string, expiresInSeconds = 900): Promise<string> {
+  return getSignedUrl(s3, new GetObjectCommand({ Bucket: bucket, Key: key }), {
+    expiresIn: expiresInSeconds,
+  });
+}
+
+export async function deleteFile(key: string) {
+  await s3.send(new DeleteObjectCommand({ Bucket: bucket, Key: key }));
 }
 
 export async function putDocument(key: string, body: Buffer, contentType: string) {
