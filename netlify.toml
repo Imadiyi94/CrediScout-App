@@ -6,3 +6,7 @@
 [build.environment]
   NEXT_TELEMETRY_DISABLED = "1"
   NODE_VERSION = "22"
+
+# Keep pdfkit's lazy-loaded font assets in the serverless bundle.
+[functions]
+  included_files = ["node_modules/pdfkit/**"]
