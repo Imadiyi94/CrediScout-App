@@ -1,0 +1,20 @@
+# Render blueprint: free Node web service. Create via dashboard → New → Web Service
+# → "Build and deploy from a Git repository" → select Imadiyi94/CrediScout-App.
+# Then paste production env vars (see README §5) in the service Environment tab.
+services:
+  - type: web
+    name: crediscout-app
+    runtime: node
+    plan: free
+    buildCommand: npm install && npx prisma generate && npm run build
+    startCommand: npm start -- -p $PORT
+    envVars:
+      - key: NODE_VERSION
+        value: "22"
+      - key: NEXT_TELEMETRY_DISABLED
+        value: "1"
+      # All secrets below are set in the Render dashboard (never committed):
+      # DATABASE_URL (Neon pooler), BETTER_AUTH_SECRET, BETTER_AUTH_URL,
+      # NEXT_PUBLIC_APP_URL, INTERNAL_API_KEY, STORAGE=r2, R2_*,
+      # GROQ_API_KEY, PAYSTACK_SECRET_KEY, DOJAH_*, CREDIT_BUREAU_MODE=MOCK,
+      # RESEND_API_KEY, TERMII_*, SMS_TEST_NUMBER
