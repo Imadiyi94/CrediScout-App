@@ -24,7 +24,7 @@ export function AppShell({
               CREDIT ANALYSIS &amp; LENDING DECISIONS
             </p>
           </div>
-          <nav className="ml-auto flex gap-1 text-sm">
+          <nav className="ml-auto flex flex-wrap items-center justify-end gap-1 text-sm">
             {items.map((i) => (
               <a
                 key={i.href}
@@ -32,7 +32,7 @@ export function AppShell({
                 className={
                   i.label === section
                     ? "rounded-lg bg-white/10 px-3 py-1.5 text-white"
-                    : "rounded-lg px-3 py-1.5 text-slate-300 hover:bg-white/10 hover:text-white"
+                    : "rounded-lg px-3 py-1.5 text-white hover:bg-white/10"
                 }
               >
                 {i.label}
