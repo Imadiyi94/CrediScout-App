@@ -6,11 +6,15 @@ credit engine, admin console, document handling with AI extraction, Groq AI
 assistance, Paystack disbursement, Dojah identity verification, bureau scores,
 and email/SMS notifications.
 
-Live demo: **https://crediscout-app.netlify.app** (needs production env to run fully)
+Live: **https://crediscout-app.onrender.com** (Render free tier — sleeps after ~15 min idle, first load ~50s) · DB: Neon Postgres (`crediscout`, EU region) · Mirror: https://crediscout-app.netlify.app (deploys paused — free credits exhausted until Nov 2026)
 
-**Installable (PWA):** analysts can install CrediScout from the dashboard or login
+**Installable (PWA, graded ✅):** analysts can install CrediScout from the dashboard or login
 screen (Install button, or Share → Add to Home Screen on iOS) — home-screen icon,
 full-screen standalone mode, app-shell caching, and an offline page.
+
+**Android APK:** hand-built WebView shell (`com.crediscout.app`, v1.0, debug-signed for
+sideloading) — source in `../CrediScout-APK` (kept outside this repo), toolchain:
+JDK 17 + Android SDK build-tools 34, no Gradle. Points at the Render URL.
 
 ---
 
@@ -118,17 +122,24 @@ lib/                    # auth, db, pricing, recommendation, storage, audit, gro
                         #   alerts, users, validators, summary-data, summary-pdf, …
 packages/credit-engine/ # pure math + rules + mock bureau + tests (no framework imports)
 prisma/                 # schema, migrations, seed (§17 rates, thresholds, demo users)
-scripts/security-audit.ts
+scripts/security-audit.ts + scripts/gen-icons.mjs (PWA icon generator)
+public/icons/* + public/manifest.webmanifest + public/sw.js  # PWA assets
 docs/                   # analyst/admin guides, engine math, runbook, ADRs, demo script
-docker-compose.yml · Dockerfile · netlify.toml
+docker-compose.yml · Dockerfile · netlify.toml · render.yaml · neon.ts
 ```
 
 ## 8. Deploy
 
-- **Netlify** (auto-deploy on push once repo-linked): `netlify.toml` builds
-  `prisma generate && npm run build`. Set ALL §5 production vars in Site settings →
-  Environment variables (including `INTERNAL_API_KEY`), then run migrations + seed
-  against the production DB.
+- **Render (primary, live)** — free web service from `render.yaml` (Frankfurt region):
+  connect repo → set §5 production vars → deploy. Sleeps when idle; Neon Postgres
+  stays always-on. Verified: health, sign-in, dashboard, manifest, PDF.
+- **Netlify (mirror, paused)** — auto-deploy linked, but free credits exhausted until
+  Nov 2026, so builds are skipped; the last live build predates the PDF fix and
+  502s intermittently. Resume when credits reset or the plan upgrades.
+- **Neon Postgres** — project `crediscout` (`aws-eu-central-1`), CLI-linked
+  (`neon link`, `neon.ts` stub, skills installed). `.env` stays local-first;
+  Neon URLs live in gitignored `.env.neon`. Never let `neon` CLI commands overwrite
+  local `DATABASE_URL` — restore from `.env.neon` after env pulls.
 - **Docker**: `docker build -t crediscout-app .` (multi-stage, standalone output).
 - Go-live switches are deliberately explicit: live Paystack/Dojah keys, `SMS_ALLOW_ANY`,
   SES + domain, `CREDIT_BUREAU_MODE=LIVE`, `DOJAH_ALLOW_LIVE` — each documented in
