@@ -3,6 +3,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Field, Input } from "@/components/ui/input";
 import { AlertBanner } from "@/components/domain/alert-banner";
+import { InstallAppCard } from "@/components/pwa/install-card";
 import { signInAction } from "./actions";
 
 export default async function LoginPage({
@@ -50,6 +51,9 @@ export default async function LoginPage({
             </form>
           </CardContent>
         </Card>
+        <div className="mt-4">
+          <InstallAppCard />
+        </div>
       </div>
     </AppShell>
   );

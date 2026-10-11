@@ -1,5 +1,6 @@
 import { AppShell } from "@/components/layout/app-shell";
 import { SignOutButton } from "@/components/layout/sign-out-button";
+import { InstallAppCard } from "@/components/pwa/install-card";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { AlertBanner } from "@/components/domain/alert-banner";
@@ -50,6 +51,8 @@ export default async function DashboardPage({
           tone="danger"
         />
       )}
+
+      <InstallAppCard />
 
       <div className="grid gap-3 md:grid-cols-3">
         <Card>

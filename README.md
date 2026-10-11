@@ -8,6 +8,10 @@ and email/SMS notifications.
 
 Live demo: **https://crediscout-app.netlify.app** (needs production env to run fully)
 
+**Installable (PWA):** analysts can install CrediScout from the dashboard or login
+screen (Install button, or Share → Add to Home Screen on iOS) — home-screen icon,
+full-screen standalone mode, app-shell caching, and an offline page.
+
 ---
 
 ## 1. What analysts do (the 11 stages)
